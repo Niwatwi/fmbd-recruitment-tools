@@ -1,7 +1,10 @@
-import { createClient } from "@supabase/supabase-js"; // บรรทัดนี้หายไปครับพี่ ตัวปัญหาเลย
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// ใส่ URL หลอกตา (Placeholder) ไว้กรณีที่ระบบหามูลค่าจริงไม่เจอตอนบิวด์ หน้าเว็บจะได้ไม่พังครับ
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://placeholder-fmbd.supabase.co";
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
 
-// สร้าง Client เชื่อมต่อเข้า public schema ตัวมาตรฐาน
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
