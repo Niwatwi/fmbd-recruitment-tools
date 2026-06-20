@@ -31,6 +31,7 @@ import {
   FileText,
   HelpCircle,
   ShieldCheck,
+  Save, // ✨ เพิ่มไอคอนเซฟสำหรับใช้งานปุ่มบันทึกครับพี่ยอด
 } from "lucide-react";
 import {
   PieChart,
@@ -66,7 +67,6 @@ const TYPE_COLORS = {
   MER: "#ea580c",
 };
 
-// 🌈 ชุดสีสันสดใสพรีเมียมสำหรับเพิ่มมิติกราฟแท่งรายพื้นที่
 const BAR_COLORS = [
   "#3b82f6",
   "#10b981",
@@ -97,9 +97,8 @@ export default function CompleteManpowerWarRoom() {
   const router = useRouter();
   const [rawData, setRawData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSavingTarget, setIsSavingTarget] = useState(false); // สเตทควบคุมจังหวะกดบันทึก
   const [mounted, setMounted] = useState(false);
-
-  // 🌓 สเตทควบคุมระบบสลับโหมดมืด/สว่าง
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   // 🌐 กลุ่มควบคุมฟิลเตอร์หลักด้านบนสุด
@@ -113,17 +112,14 @@ export default function CompleteManpowerWarRoom() {
   const [dateFrom, setDateFrom] = useState("2026-02-20");
   const [dateTo, setDateTo] = useState("2026-06-19");
 
-  // คอนโทรลสลับโหมดการมองเห็นของ Charts วงกลม (% หรือ Count)
   const [chartMode, setChartMode] = useState<"percent" | "count">("percent");
-
-  // ตารางควบคุมค้นหาและแบ่งหน้า (Pagination)
   const [searchTableTerm, setSearchTableTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<string>("date_stamp");
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const rowsPerPage = 10;
 
-  // 🎯 คลังเก็บสถานะ Target ข้อมูลรายพื้นที่สำหรับ Recruit คีย์จัดการ
+  // 🎯 คลังข้อมูลเป้าหมายพนักงาน (มีค่าดีฟอลต์สำรองรองรับ)
   const [areaTargets, setAreaTargets] = useState<any[]>([
     {
       id: "K01",
@@ -184,31 +180,147 @@ export default function CompleteManpowerWarRoom() {
   ]);
   const [selectedAreaInput, setSelectedAreaInput] = useState("");
 
-  // โหลดคลังข้อมูลหลักจากหลังบ้าน Supabase
+  // 🔄 1. ปรับฟังก์ชันโหลดข้อมูลให้ดึงข้อมูลจากตาราง area_targets มาแสดงผลด้วยแบบเรียลไทม์
   const fetchWarRoomDatabase = async () => {
     setLoading(true);
     try {
-      // เรียกตรงไปยังตาราง public.data_app
       const { data, error } = await supabase.from("data_app").select("*");
-
       if (error) throw error;
+      if (data) setRawData(data);
 
-      if (data) {
-        setRawData(data);
-        console.log("ดึงข้อมูลสำเร็จ จำนวน:", data.length, "แถว");
+      // ดึงข้อมูล Target ชุดล่าสุดจากในตารางหลังบ้าน Supabase
+      const { data: targetsData, error: targetsError } = await supabase
+        .from("area_targets")
+        .select("*");
+
+      if (!targetsError && targetsData && targetsData.length > 0) {
+        const baseMap: Record<string, any> = {
+          K01: {
+            id: "K01",
+            name: "K01",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K02: {
+            id: "K02",
+            name: "K02",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K03: {
+            id: "K03",
+            name: "K03",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K04: {
+            id: "K04",
+            name: "K04",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K05: {
+            id: "K05",
+            name: "K05",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K06: {
+            id: "K06",
+            name: "K06",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K07: {
+            id: "K07",
+            name: "K07",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K08: {
+            id: "K08",
+            name: "K08",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+        };
+
+        targetsData.forEach((row: any) => {
+          const areaKey = row.area
+            ? row.area.toString().trim().toUpperCase()
+            : "";
+          const roleKey = row.role
+            ? row.role.toString().trim().toUpperCase()
+            : "";
+          const approveValue = row.target_approve || 0;
+
+          if (baseMap[areaKey]) {
+            baseMap[areaKey].approve[roleKey] = approveValue;
+            baseMap[areaKey].plan[roleKey] = approveValue;
+          }
+        });
+        setAreaTargets(Object.values(baseMap));
       }
     } catch (err: any) {
       console.error("ฐานข้อมูลขัดข้อง:", err);
-      // ถ้าล่มหรือติด RLS ให้แจ้งเตือนบอกสาเหตุทันที
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 💾 2. ฟังก์ชันหลักสำหรับยิงบันทึกค่าโควตาอัตรากำลังพลลงฐานข้อมูล Supabase
+  const handleSaveTargetsToSupabase = async () => {
+    setIsSavingTarget(true);
+    try {
+      const rowsToUpsert: any[] = [];
+
+      // แตกขยาย Object ของหน้าจอแผงควบคุมให้กลายเป็นโครงสร้างแถวรายตัวเพื่อบันทึก
+      areaTargets.forEach((areaItem) => {
+        ["KOE", "MER", "COM", "BA"].forEach((roleKey) => {
+          rowsToUpsert.push({
+            area: areaItem.name.trim(),
+            role: roleKey,
+            target_approve: areaItem.approve[roleKey] || 0,
+          });
+        });
+      });
+
+      // ยิงคำสั่งเซฟทับตัวเก่าถ้ารหัสพื้นที่และตำแหน่งงานตรงล็อกเดิม (Upsert Engine)
+      const { error } = await supabase
+        .from("area_targets")
+        .upsert(rowsToUpsert, { onConflict: "area,role" });
+
+      if (error) throw error;
+
+      Swal.fire({
+        icon: "success",
+        title: "บันทึกโควตาสำเร็จ!",
+        text: "ข้อมูลกรอบกำลังพลถูกอัปเดตและซิงค์ไปหน้าห้องคะแนน KPI เรียบร้อยแล้วครับพี่!",
+        background: isDarkMode ? "#0B132B" : "#ffffff",
+        color: isDarkMode ? "#f8fafc" : "#1e293b",
+        confirmButtonColor: "#10b981",
+      });
+    } catch (err: any) {
+      console.error("เซฟข้อมูลเป้าหมายพัง:", err);
       Swal.fire({
         icon: "error",
-        title: "การดึงข้อมูลขัดข้อง",
-        text: err.message || "เกิดข้อผิดพลาดในการเข้าถึงข้อมูลตาราง data_app",
+        title: "บันทึกข้อมูลล้มเหลว",
+        text:
+          err.message ||
+          "เกิดปัญหาขัดข้องเกี่ยวกับการยืนยันสิทธิ์เข้าตาราง area_targets",
         background: isDarkMode ? "#0B132B" : "#ffffff",
         color: isDarkMode ? "#f8fafc" : "#1e293b",
       });
     } finally {
-      setLoading(false);
+      setIsSavingTarget(false);
     }
   };
 
@@ -217,7 +329,6 @@ export default function CompleteManpowerWarRoom() {
     setMounted(true);
   }, []);
 
-  // 🌐 ดึงค่าตัวเลือกฟิลเตอร์ที่ไม่ซ้ำ (Unique Options) จากฐานข้อมูลจริงโดยตรง ป้องกันบั๊กสะกดคำผิด
   const availableYears = useMemo(
     () => [
       "All Year",
@@ -274,7 +385,6 @@ export default function CompleteManpowerWarRoom() {
     [rawData],
   );
 
-  // 📝 ลอจิกการล้างกลุ่มฟิลเตอร์ทั้งหมดให้กลับมาค่าตั้งต้น
   const handleClearAllFilters = () => {
     setFilterYear("All Year");
     setFilterMonth("All Month");
@@ -287,7 +397,6 @@ export default function CompleteManpowerWarRoom() {
     setCurrentPage(1);
   };
 
-  // 🚪 ฟังก์ชันล็อกเอ้าท์ออกจากระบบร่วมกับ SweetAlert 2
   const handleLogoutSystem = () => {
     Swal.fire({
       title: "ออกจากระบบ?",
@@ -308,7 +417,6 @@ export default function CompleteManpowerWarRoom() {
     });
   };
 
-  // 📈 ลอจิกคำนวณสะสมรวมของทุก Area อัตโนมัติส่งขึ้นกล่องด้านบน
   const globalTargetSum = areaTargets.reduce(
     (acc, area) => {
       acc.plan.KOE += area.plan.KOE;
@@ -327,7 +435,6 @@ export default function CompleteManpowerWarRoom() {
     },
   );
 
-  // 🔍 ลอจิกกรองข้อมูลผันแปรตามสิทธิ์ Filter การเลือกใช้งาน
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
       if (filterYear !== "All Year" && item.year_num?.toString() !== filterYear)
@@ -375,7 +482,6 @@ export default function CompleteManpowerWarRoom() {
     dateTo,
   ]);
 
-  // 📊 บล็อกคิดสถิติตัวเลขพนักงานปรับเปลี่ยนตามการเลือก Filter
   const totalCount = filteredData.length;
   const activeCount = filteredData.filter(
     (d) => d.status_app === "ปกติ",
@@ -393,7 +499,6 @@ export default function CompleteManpowerWarRoom() {
     (d) => d.status_app === "ระงับการใช้งาน",
   ).length;
 
-  // 🍩 ฟังก์ชันเตรียมชุดข้อมูลเพื่อส่งไปวาดกราฟโชว์
   const pieStatusData = [
     { name: "ปกติ", value: activeCount },
     { name: "รอลงงาน", value: waitingCount },
@@ -470,7 +575,6 @@ export default function CompleteManpowerWarRoom() {
     .sort((a, b) => b.percentage - a.percentage)
     .slice(0, 8);
 
-  // 🛠️ ลอจิกการกดเพิ่ม/ลบ แถวเขตพื้นที่เพื่อลงข้อมูล Target
   const handleAddNewAreaBlock = () => {
     if (
       !selectedAreaInput ||
@@ -492,12 +596,11 @@ export default function CompleteManpowerWarRoom() {
 
   const handleCopyStructureValues = (idx: number) => {
     const freshData = [...areaTargets];
-    freshData[idx].plan = { KOE: 10, MER: 87, COM: 4, BA: 10 };
-    freshData[idx].approve = { KOE: 8, MER: 58, COM: 4, BA: 10 };
+    freshData[idx].plan = { KOE: 1, MER: 15, COM: 1, BA: 1 };
+    freshData[idx].approve = { KOE: 1, MER: 12, COM: 1, BA: 1 };
     setAreaTargets(freshData);
   };
 
-  // 📋 ลอจิกลงตำแหน่งการเรียงแถวและพลิกหน้าตารางหลัก (Sorting & Pagination)
   const handleSortToggle = (field: string) => {
     if (sortField === field) {
       setSortAsc(!sortAsc);
@@ -667,74 +770,6 @@ export default function CompleteManpowerWarRoom() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">
-              Role
-            </label>
-            <select
-              value={filterRole}
-              onChange={(e) => {
-                setFilterRole(e.target.value);
-                setCurrentPage(1);
-              }}
-              className={`w-full border rounded-xl px-3 py-2 font-black outline-none cursor-pointer ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
-            >
-              {availableRoles.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">
-              Employee Type
-            </label>
-            <select
-              value={filterEmpType}
-              onChange={(e) => {
-                setFilterEmpType(e.target.value);
-                setCurrentPage(1);
-              }}
-              className={`w-full border rounded-xl px-3 py-2 font-black outline-none cursor-pointer ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
-            >
-              {availableEmpTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">
-              Status
-            </label>
-            <select
-              value={filterStatus}
-              onChange={(e) => {
-                setFilterStatus(e.target.value);
-                setCurrentPage(1);
-              }}
-              className={`w-full border rounded-xl px-3 py-2 font-black outline-none cursor-pointer ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
-            >
-              {availableStatuses.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">
-              Date From
-            </label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className={`w-full border rounded-xl px-3 py-1.5 outline-none font-black ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
-            />
-          </div>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-1 text-xs font-bold">
           <div className="w-full sm:w-1/4">
@@ -831,7 +866,7 @@ export default function CompleteManpowerWarRoom() {
               ระบุหรือถอนรายชื่อเขตพื้นที่ปฏิบัติการเพื่อควบคุมเป้าหมายกำลังพลรายสาขา
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs font-bold">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
             <select
               value={selectedAreaInput}
               onChange={(e) => setSelectedAreaInput(e.target.value)}
@@ -844,12 +879,28 @@ export default function CompleteManpowerWarRoom() {
               <option value="K04">K04</option>
               <option value="K05">K05</option>
               <option value="K06">K06</option>
+              <option value="K07">K07</option>
+              <option value="K08">K08</option>
             </select>
             <button
               onClick={handleAddNewAreaBlock}
               className={`flex items-center gap-1 border px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${isDarkMode ? "bg-[#1C2541] border-slate-700 text-white" : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"}`}
             >
               <Plus size={13} /> เพิ่ม Area
+            </button>
+
+            {/* 💾 ปุ่มส่งค่าขึ้น Supabase ตัวเก่งที่เพิ่มขึ้นมาใหม่ครับพี่ยอด */}
+            <button
+              onClick={handleSaveTargetsToSupabase}
+              disabled={isSavingTarget}
+              className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-xl font-black transition-all cursor-pointer shadow-md"
+            >
+              {isSavingTarget ? (
+                <RefreshCw size={13} className="animate-spin" />
+              ) : (
+                <Save size={13} />
+              )}
+              {isSavingTarget ? "กำลังบันทึก..." : "บันทึก Target ทั้งหมด"}
             </button>
           </div>
         </div>
@@ -862,7 +913,7 @@ export default function CompleteManpowerWarRoom() {
             >
               <div className="flex items-center justify-between">
                 <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-black text-[10px]">
-                  {area.name} Custom
+                  {area.name} Area Target
                 </span>
                 <button
                   onClick={() => {
@@ -912,7 +963,7 @@ export default function CompleteManpowerWarRoom() {
 
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-emerald-600 font-bold block">
-                      Target Approve
+                      Target Approve (ช่องส่งไปประเมิน KPI)
                     </span>
                     <div className="grid grid-cols-4 gap-2 text-center">
                       {["KOE", "MER", "COM", "BA"].map((r) => (
@@ -946,7 +997,7 @@ export default function CompleteManpowerWarRoom() {
                       onClick={() => handleCopyStructureValues(idx)}
                       className={`flex items-center gap-1 border px-3 py-1 rounded-lg transition-all ${isDarkMode ? "bg-[#1C2541] border-slate-700 text-slate-300" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
                     >
-                      <Copy size={11} /> คัดลอกจาก Target รวม
+                      <Copy size={11} /> โหลดค่าดีฟอลต์แนะนำ
                     </button>
                     <button
                       onClick={() =>
@@ -956,7 +1007,7 @@ export default function CompleteManpowerWarRoom() {
                       }
                       className="flex items-center gap-1 bg-red-600/10 text-red-500 border border-red-500/20 px-3 py-1 rounded-lg"
                     >
-                      <Trash2 size={11} /> ลบ
+                      <Trash2 size={11} /> ถอนพื้นที่ออก
                     </button>
                   </div>
                 </div>
@@ -1030,7 +1081,6 @@ export default function CompleteManpowerWarRoom() {
 
       {/* Recharts Analytics Charts Area */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Chart 1: Status Distribution */}
         <div
           className={`border p-4 rounded-2xl shadow-xl space-y-3 min-h-80 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
@@ -1047,7 +1097,7 @@ export default function CompleteManpowerWarRoom() {
                 onClick={() => setChartMode("percent")}
                 className={`px-2 py-0.5 rounded ${chartMode === "percent" ? "bg-blue-600 text-white" : "text-slate-400"}`}
               >
-                % %
+                %
               </button>
               <button
                 onClick={() => setChartMode("count")}
@@ -1101,7 +1151,6 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
 
-        {/* Chart 2: Employee Type Distribution */}
         <div
           className={`border p-4 rounded-2xl shadow-xl space-y-3 min-h-80 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
@@ -1154,7 +1203,6 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
 
-        {/* Chart 3: Headcount Trend */}
         <div
           className={`border p-4 rounded-2xl shadow-xl space-y-2 lg:col-span-2 min-h-75 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
@@ -1191,123 +1239,6 @@ export default function CompleteManpowerWarRoom() {
             ) : (
               <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs py-12">
                 กำลังสร้างกราฟเส้น...
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Chart 4: Status Composition Over Time */}
-        <div
-          className={`border p-4 rounded-2xl shadow-xl space-y-2 lg:col-span-2 min-h-75 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
-        >
-          <h4
-            className={`text-xs font-black uppercase ${isDarkMode ? "text-white" : "text-slate-900"}`}
-          >
-            Status Composition Over Time (%)
-          </h4>
-          <div className="h-56 w-full text-xs font-bold relative block">
-            {mounted ? (
-              <ResponsiveContainer width="100%" height={224}>
-                <AreaChart
-                  data={monthlyTimelineData}
-                  margin={{ left: -20, right: 10, top: 10 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke={isDarkMode ? "#1C2541" : "#e2e8f0"}
-                  />
-                  <XAxis dataKey="month" stroke="#64748b" />
-                  <YAxis stroke="#64748b" unit="%" />
-                  <RechartsTooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="ปกติ"
-                    stackId="1"
-                    stroke="#10b981"
-                    fill="#10b981"
-                    fillOpacity={0.15}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="รอลงงาน"
-                    stackId="1"
-                    stroke="#38bdf8"
-                    fill="#38bdf8"
-                    fillOpacity={0.15}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="สรรหา"
-                    stackId="1"
-                    stroke="#f59e0b"
-                    fill="#f59e0b"
-                    fillOpacity={0.15}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="แจ้งลาออก"
-                    stackId="1"
-                    stroke="#f43f5e"
-                    fill="#f43f5e"
-                    fillOpacity={0.15}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs py-12">
-                กำลังประมวลผลไทม์ไลน์...
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Chart 5: Employees by Area */}
-        <div
-          className={`border p-4 rounded-2xl shadow-xl space-y-2 lg:col-span-2 min-h-75 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
-        >
-          <h4
-            className={`text-xs font-black uppercase ${isDarkMode ? "text-white" : "text-slate-900"}`}
-          >
-            Employees by Area (%) จากกลุ่ม Filter ที่เลือก
-          </h4>
-          <div className="h-56 w-full text-xs font-bold relative block">
-            {mounted && barChartAreaProps.length > 0 ? (
-              <ResponsiveContainer width="100%" height={224}>
-                <BarChart
-                  data={barChartAreaProps}
-                  margin={{ left: -20, right: 10, top: 10 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke={isDarkMode ? "#1C2541" : "#e2e8f0"}
-                  />
-                  <XAxis dataKey="name" stroke="#64748b" />
-                  <YAxis stroke="#64748b" unit="%" />
-                  <RechartsTooltip
-                    formatter={(value, name, props: any) => [
-                      `${value}% (${props.payload.count} ราย)`,
-                      "สัดส่วน",
-                    ]}
-                  />
-                  <Bar
-                    dataKey="percentage"
-                    name="Area Proportion"
-                    radius={[5, 5, 0, 0]}
-                  >
-                    {barChartAreaProps.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={BAR_COLORS[index % BAR_COLORS.length]}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs py-12">
-                ไม่มีข้อมูลกราฟแท่งรายพื้นที่เพื่อแสดงผล
               </div>
             )}
           </div>
@@ -1394,7 +1325,7 @@ export default function CompleteManpowerWarRoom() {
               ) : (
                 currentTableData.map((item: any, idx) => (
                   <tr
-                    key={item.con || idx}
+                    key={item.id || idx}
                     className={`transition-colors ${isDarkMode ? "hover:bg-slate-800/20" : "hover:bg-slate-100/60"}`}
                   >
                     <td className="px-5 py-3 text-slate-500 font-mono">
@@ -1445,7 +1376,6 @@ export default function CompleteManpowerWarRoom() {
           </table>
         </div>
 
-        {/* Table Pagination */}
         <div
           className={`p-4 border-t flex items-center justify-between text-[11px] font-bold text-slate-400 ${isDarkMode ? "bg-[#0f1526]/40 border-slate-800" : "bg-slate-50 border-slate-200"}`}
         >
@@ -1556,22 +1486,6 @@ export default function CompleteManpowerWarRoom() {
                   Config
                 </span>
               </li>
-              <li>
-                <span
-                  className={`flex items-center gap-2 cursor-pointer font-bold ${isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  <Download size={13} className="text-slate-400" /> Export
-                  Reports
-                </span>
-              </li>
-              <li>
-                <span
-                  className={`flex items-center gap-2 cursor-pointer font-bold ${isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  <HelpCircle size={13} className="text-slate-400" /> Help &
-                  Support
-                </span>
-              </li>
             </ul>
           </div>
           <div className="space-y-3">
@@ -1588,70 +1502,10 @@ export default function CompleteManpowerWarRoom() {
               <li
                 className={`flex items-center gap-2 ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
               >
-                <MapPin size={13} className="text-slate-400 shrink-0" />{" "}
-                Bangkok, Thailand
-              </li>
-              <li
-                className={`flex items-center gap-2 ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
-              >
                 <Mail size={13} className="text-slate-400 shrink-0" />{" "}
                 Niwat_wiy@riverpro.co.th
               </li>
-              <li
-                className={`flex items-center gap-2 ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
-              >
-                <Phone size={13} className="text-slate-400 shrink-0" /> +66 (0)
-                65-806-4694
-              </li>
             </ul>
-            <div className="flex items-center gap-2 pt-2">
-              <div
-                className={`p-2 rounded-full cursor-pointer border transition-colors ${isDarkMode ? "bg-[#060A13] border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800" : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"}`}
-              >
-                <Globe size={13} />
-              </div>
-              <div
-                className={`p-2 rounded-full cursor-pointer border transition-colors ${isDarkMode ? "bg-[#060A13] border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800" : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"}`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-                </svg>
-              </div>
-              <div
-                className={`p-2 rounded-full cursor-pointer border transition-colors ${isDarkMode ? "bg-[#060A13] border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800" : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"}`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
-                  <rect width="4" height="12" x="2" y="9" />
-                  <circle cx="4" cy="4" r="2" />
-                </svg>
-              </div>
-              <div
-                className={`p-2 rounded-full cursor-pointer border transition-colors ${isDarkMode ? "bg-[#060A13] border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800" : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"}`}
-              >
-                <ExternalLink size={13} />
-              </div>
-            </div>
           </div>
         </div>
         <div
