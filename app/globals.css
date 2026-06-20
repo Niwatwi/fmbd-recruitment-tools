@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* พี่ยอดสามารถใส่ CSS เพิ่มเติมตรงนี้ได้ครับ แต่ส่วนใหญ่ไม่ต้องใส่แล้ว เพราะ Tailwind จัดการให้หมด */
+@layer base {
+  body {
+    @apply bg-[#0B0F19] text-slate-200;
+  }
+}
