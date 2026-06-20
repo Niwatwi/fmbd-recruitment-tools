@@ -64,19 +64,17 @@ export default function KPIDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
-  const areaTargets = useMemo(
-    () => [
-      { id: "K01", name: "K01", approve: { KOE: 1, MER: 17, COM: 0, BA: 1 } },
-      { id: "K02", name: "K02", approve: { KOE: 1, MER: 2, COM: 0, BA: 1 } },
-      { id: "K03", name: "K03", approve: { KOE: 1, MER: 8, COM: 1, BA: 2 } },
-      { id: "K04", name: "K04", approve: { KOE: 1, MER: 10, COM: 0, BA: 1 } },
-      { id: "K05", name: "K05", approve: { KOE: 1, MER: 7, COM: 1, BA: 1 } },
-      { id: "K06", name: "K06", approve: { KOE: 1, MER: 12, COM: 1, BA: 2 } },
-      { id: "K07", name: "K07", approve: { KOE: 1, MER: 9, COM: 1, BA: 1 } },
-      { id: "K08", name: "K08", approve: { KOE: 1, MER: 10, COM: 0, BA: 1 } },
-    ],
-    [],
-  );
+  // 🎯 บล็อกเป้าหมายพร้อมค่าเริ่มต้นสำรอง (Fallback) ป้องกันหน้าจอขาวตอนโหลดช้า
+  const [areaTargets, setAreaTargets] = useState<any[]>([
+    { id: "K01", name: "K01", approve: { KOE: 1, MER: 17, COM: 0, BA: 1 } },
+    { id: "K02", name: "K02", approve: { KOE: 1, MER: 2, COM: 0, BA: 1 } },
+    { id: "K03", name: "K03", approve: { KOE: 1, MER: 8, COM: 1, BA: 2 } },
+    { id: "K04", name: "K04", approve: { KOE: 1, MER: 10, COM: 0, BA: 1 } },
+    { id: "K05", name: "K05", approve: { KOE: 1, MER: 7, COM: 1, BA: 1 } },
+    { id: "K06", name: "K06", approve: { KOE: 1, MER: 12, COM: 1, BA: 2 } },
+    { id: "K07", name: "K07", approve: { KOE: 1, MER: 9, COM: 1, BA: 1 } },
+    { id: "K08", name: "K08", approve: { KOE: 1, MER: 10, COM: 0, BA: 1 } },
+  ]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -92,11 +90,74 @@ export default function KPIDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 1. ดึงข้อมูลบันทึกสถิติรายวันพนักงานปกติ
       const { data: result, error } = await supabase
         .from("data_app")
-        .select("*"); //
+        .select("*");
       if (error) throw error;
       setRawData(result || []);
+
+      // 2. 🌐 ดึงข้อมูลเป้าหมายจากตาราง area_targets และจัดรูปทรงข้อมูลใหม่ให้สอดคล้องกับตัวแอป
+      const { data: targetRows, error: targetError } = await supabase
+        .from("area_targets")
+        .select("area, role, target_approve");
+
+      if (!targetError && targetRows && targetRows.length > 0) {
+        const baseMap: Record<string, any> = {
+          K01: {
+            id: "K01",
+            name: "K01",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K02: {
+            id: "K02",
+            name: "K02",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K03: {
+            id: "K03",
+            name: "K03",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K04: {
+            id: "K04",
+            name: "K04",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K05: {
+            id: "K05",
+            name: "K05",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K06: {
+            id: "K06",
+            name: "K06",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K07: {
+            id: "K07",
+            name: "K07",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K08: {
+            id: "K08",
+            name: "K08",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+        };
+
+        targetRows.forEach((row: any) => {
+          const areaKey = row.area;
+          const roleKey = row.role;
+          const approveValue = row.target_approve || 0;
+
+          if (baseMap[areaKey] && baseMap[areaKey].approve) {
+            baseMap[areaKey].approve[roleKey] = approveValue;
+          }
+        });
+
+        setAreaTargets(Object.values(baseMap));
+      }
     } catch (error: any) {
       console.error("Fetch Error:", error.message);
     } finally {
@@ -313,7 +374,6 @@ export default function KPIDashboard() {
             )
             .map((d) => d.fullname),
         ).size;
-
         const targetApproveCount =
           targetArea.approve.MER +
           targetArea.approve.COM +
@@ -548,7 +608,6 @@ export default function KPIDashboard() {
             </h2>
           </div>
           <div className="bg-[#0D0D10] border border-white/10 p-4 rounded-xl">
-            {/* ✨ ป้องกันพังปมโชว์อักษรคำพูดค้างส่งตรวจ ESLint ด้วยวงเล็บข้อความปีกกา */}
             <p className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">
               {'Actual "ปกติ" (MER,COM,BA)'}
             </p>
@@ -642,6 +701,108 @@ export default function KPIDashboard() {
             </table>
           </div>
         </div>
+
+        {/* ทำเนียบพนักงานระดับล่าง */}
+        <div className="bg-[#0D0D10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="p-4 bg-[#121217] border-b border-white/5 flex items-center justify-between">
+            <div className="relative w-full sm:w-72">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                <Search size={13} />
+              </span>
+              <input
+                type="text"
+                value={searchTableTerm}
+                onChange={(e) => setSearchTableTerm(e.target.value)}
+                placeholder="ค้นหาชื่อ หรือรหัสพื้นที่..."
+                className="w-full border border-white/10 rounded-xl pl-9 pr-4 py-1.5 text-xs outline-none bg-[#0A0A0D] text-white"
+              />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs font-bold">
+              <thead>
+                <tr className="border-b border-white/10 bg-[#0A0A0D] text-slate-400 uppercase text-[9px]">
+                  <th className="px-5 py-4">Full Name</th>
+                  <th className="px-5 py-4">Type</th>
+                  <th className="px-5 py-4">Area Code</th>
+                  <th className="px-5 py-4">Status</th>
+                  <th className="px-5 py-4">Date Stamp</th>
+                  <th className="px-5 py-4 text-center text-rose-400">
+                    Scale Penalty
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-slate-300">
+                {currentTableData.map((item, idx) => {
+                  const itemPenalty = personPenaltyMap[item.fullname] || 0;
+                  return (
+                    <tr key={idx} className="hover:bg-white/2">
+                      <td className="px-5 py-3.5 text-white font-black">
+                        {item.fullname || "-"}
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-slate-400 text-[11px]">
+                        {item.employee_type || "-"}
+                      </td>
+                      <td className="px-5 py-3.5 text-blue-400 font-mono">
+                        {item.area || "-"}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] border font-black uppercase ${STATUS_BADGES[item.status_app] || "bg-white/5 text-white border-white/10"}`}
+                        >
+                          {item.status_app || "N/A"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-500 font-mono">
+                        {item.date_stamp || "-"}
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        {itemPenalty > 0 ? (
+                          <span className="bg-rose-500/10 border border-rose-500/20 text-rose-400 font-mono px-2 py-0.5 rounded flex items-center justify-center gap-1 max-w-28 mx-auto text-[11px] font-black">
+                            -{itemPenalty} แต้ม
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-mono">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400 bg-[#0A0A0D]">
+            <span>
+              Showing{" "}
+              {searchedRows.length > 0
+                ? (currentPage - 1) * rowsPerPage + 1
+                : 0}
+              -{Math.min(currentPage * rowsPerPage, searchedRows.length)} of{" "}
+              {searchedRows.length} รายการ
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-2 py-1 rounded-lg border border-white/10 text-white hover:bg-white/5"
+              >
+                ‹
+              </button>
+              <span className="px-3 py-1 rounded-lg border border-white/10 font-mono bg-[#121217] text-white">
+                {currentPage} / {totalPagesCount || 1}
+              </span>
+              <button
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(p + 1, totalPagesCount))
+                }
+                disabled={currentPage === totalPagesCount}
+                className="px-2 py-1 rounded-lg border border-white/10 text-white hover:bg-white/5"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* PRINT VIEW TEMPLATE */}
@@ -696,7 +857,6 @@ export default function KPIDashboard() {
               </div>
             </div>
             <div className="border border-slate-300 p-2.5 rounded-md bg-emerald-50">
-              {/* ✨ คลีนจุดเครื่องหมายคำพูดฝั่งใบรายงานพิมพ์ส่งบัญชี */}
               <div className="text-[10px] text-slate-600">
                 {'Actual Active "ปกติ" (หัวคนจริง)'}
               </div>
