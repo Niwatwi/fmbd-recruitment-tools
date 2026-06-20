@@ -93,14 +93,22 @@ export default function KPIDashboard() {
       // 1. ดึงข้อมูลบันทึกสถิติรายวันพนักงานปกติ
       const { data: result, error } = await supabase
         .from("data_app")
-        .select("*");
+        .select("*"); //
       if (error) throw error;
       setRawData(result || []);
 
-      // 2. 🌐 ดึงข้อมูลเป้าหมายจากตาราง area_targets และจัดรูปทรงข้อมูลใหม่ให้สอดคล้องกับตัวแอป
+      // 2. 🌐 ดึงข้อมูลเป้าหมายจากตาราง area_targets ของพี่ยอด
       const { data: targetRows, error: targetError } = await supabase
-        .from("area_targets")
+        .from("area_targets") //
         .select("area, role, target_approve");
+
+      // 🔥 พี่ยอดครับ! ผมเพิ่มบรรทัดนี้เพื่อพิมพ์ดูโครงสร้างข้อมูลจริงบนหน้าจอ Console ของพี่เลยครับ
+      console.log(
+        "🔍 ตรวจสอบยอด Target จาก Supabase:",
+        targetRows,
+        "หากติดขัดเออร์เรอร์:",
+        targetError,
+      );
 
       if (!targetError && targetRows && targetRows.length > 0) {
         const baseMap: Record<string, any> = {
@@ -147,8 +155,13 @@ export default function KPIDashboard() {
         };
 
         targetRows.forEach((row: any) => {
-          const areaKey = row.area;
-          const roleKey = row.role;
+          // ✨ เคลียร์ช่องว่างขยะ และปรับเป็นอักษรพิมพ์ใหญ่ทั้งหมดออโต้ ป้องกันบั๊กคำไม่ตรงล็อกครับพี่
+          const areaKey = row.area
+            ? row.area.toString().trim().toUpperCase()
+            : "";
+          const roleKey = row.role
+            ? row.role.toString().trim().toUpperCase()
+            : "";
           const approveValue = row.target_approve || 0;
 
           if (baseMap[areaKey] && baseMap[areaKey].approve) {
