@@ -88,7 +88,7 @@ export default function CompleteManpowerWarRoom() {
   const [filterEmpType, setFilterEmpType] = useState("All Employee Type");
   const [filterStatus, setFilterStatus] = useState("All Status");
   const [dateFrom, setDateFrom] = useState("2026-02-20");
-  const [dateTo, setDateTo] = useState("2026-06-19");
+  const [dateTo, setDateTo] = useState("2026-06-21");
 
   const [chartMode, setChartMode] = useState<"percent" | "count">("percent");
   const [searchTableTerm, setSearchTableTerm] = useState("");
@@ -302,13 +302,10 @@ export default function CompleteManpowerWarRoom() {
     fetchWarRoomDatabase();
     setMounted(true);
 
-    // 📆 🤖 จุดปลดล็อก: คำนวณหาค่าวันปัจจุบัน (Today) ของทุกวันแบบอัตโนมัติ
     const today = new Date();
     const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0"); // เติมเลข 0 ข้างหน้าถ้าเป็นเลขหลักเดียว
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
-
-    // สั่งเซฟลงสเตตดักหน้าปฏิทินให้เป็นวันล่าสุดของวันนี้ทันทีครับพี่ยอด
     setDateTo(`${yyyy}-${mm}-${dd}`);
   }, []);
 
@@ -322,6 +319,7 @@ export default function CompleteManpowerWarRoom() {
     ],
     [rawData],
   );
+
   const availableMonths = useMemo(
     () => [
       "All Month",
@@ -331,6 +329,7 @@ export default function CompleteManpowerWarRoom() {
     ],
     [rawData],
   );
+
   const availableAreas = useMemo(
     () => [
       "All Area",
@@ -338,6 +337,7 @@ export default function CompleteManpowerWarRoom() {
     ],
     [rawData],
   );
+
   const availableAreaCodes = useMemo(
     () => [
       "All Area Code",
@@ -356,12 +356,17 @@ export default function CompleteManpowerWarRoom() {
     setFilterStatus("All Status");
     setSearchTableTerm("");
     setCurrentPage(1);
+
+    const today = new Date();
+    setDateTo(
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`,
+    );
   };
 
   const handleLogoutSystem = () => {
     Swal.fire({
       title: "ออกจากระบบ?",
-      text: "พี่ยอดต้องการออกจากระบบรายงานกำลังพลใช่ไหมครับ?",
+      text: "ต้องการออกจากระบบรายงานกำลังพลใช่ไหม?",
       icon: "question",
       showCancelButton: true,
       confirmButtonColor: "#ef4444",
@@ -378,16 +383,24 @@ export default function CompleteManpowerWarRoom() {
     });
   };
 
-  // 📊 1. [ต้องอยู่บนสุด] กรองข้อมูลดิบหลัก ผูกตัวแปรเวลากับปฏิทิน June
+  // 📊 1. [ต้องอยู่บนสุด] กรองข้อมูลดิบหลักแบบเข้มงวดสูง (ทลายบั๊ก String Mismatch & Date Format)
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
-      if (filterYear !== "All Year" && item.year_num?.toString() !== filterYear)
-        return false;
-      if (
-        filterMonth !== "All Month" &&
-        item.month_num?.toString() !== filterMonth
-      )
-        return false;
+      // ➔ กรองตามปี
+      if (filterYear !== "All Year") {
+        const itemYear = parseInt(item.year_num, 10);
+        const selectedYear = parseInt(filterYear, 10);
+        if (isNaN(itemYear) || itemYear !== selectedYear) return false;
+      }
+
+      // ➔ กรองตามเดือน (ใช้ ParseInt เพื่อแก้บั๊กเรื่องเลข "6" กับ "06")
+      if (filterMonth !== "All Month") {
+        const itemMonth = parseInt(item.month_num, 10);
+        const selectedMonth = parseInt(filterMonth, 10);
+        if (isNaN(itemMonth) || itemMonth !== selectedMonth) return false;
+      }
+
+      // ➔ กรองตามพื้นที่ สายงาน และสถานะทั่วไป
       if (filterArea !== "All Area" && item.area !== filterArea) return false;
       if (
         filterAreaCode !== "All Area Code" &&
@@ -403,13 +416,25 @@ export default function CompleteManpowerWarRoom() {
       if (filterStatus !== "All Status" && item.status_app !== filterStatus)
         return false;
 
+      // ➔ กรองช่วงวันที่แบบทลายบั๊กด้วยการสกัด Regex จับหลักปี-เดือน-วัน สากลครับพี่
       if (item.date_stamp) {
-        const parts = item.date_stamp.split("-");
-        let standardDate = item.date_stamp;
-        if (parts[0] && parts[0].length === 2) {
-          standardDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        const dateNums = item.date_stamp.toString().match(/\d+/g);
+        if (dateNums && dateNums.length >= 3) {
+          let year = dateNums[2];
+          let month = dateNums[1].padStart(2, "0");
+          let day = dateNums[0].padStart(2, "0");
+
+          if (dateNums[0].length === 4) {
+            year = dateNums[0];
+            month = dateNums[1].padStart(2, "0");
+            day = dateNums[2].padStart(2, "0");
+          }
+
+          const cleanItemDate = `${year}-${month}-${day}`;
+
+          if (dateFrom && cleanItemDate < dateFrom) return false;
+          if (dateTo && cleanItemDate > dateTo) return false;
         }
-        if (standardDate < dateFrom || standardDate > dateTo) return false;
       }
       return true;
     });
@@ -426,28 +451,38 @@ export default function CompleteManpowerWarRoom() {
     dateTo,
   ]);
 
-  // 📈 2. [มาวางต่อท้าย] คำนวณยอดเป้าหมายสะสมและคอลัมน์ TOTAL ให้ผันแปรตามตัวกรองเวลาด้านบนเรียบร้อยครับพี่
+  // 📈 2. คำนวณยอดเป้าหมายสะสมและคอลัมน์ TOTAL ให้ผันแปรแมตช์ตามตัวกรองด้านบน
   const globalTargetSum = useMemo(() => {
     const activeAreasInFilter = new Set(
-      filteredData.map((d) => d.area?.toString().trim().toUpperCase()),
+      filteredData
+        .flatMap((d) => [
+          d.area?.toString().trim().toUpperCase(),
+          d.area_code?.toString().trim().toUpperCase(),
+        ])
+        .filter(Boolean),
     );
 
     return areaTargets.reduce(
       (acc, area) => {
-        const areaKey = area.name?.toString().trim().toUpperCase();
+        const areaNameUpper = area.name?.toString().trim().toUpperCase();
+        const areaIdUpper = area.id?.toString().trim().toUpperCase();
 
         if (filterArea !== "All Area" && area.name !== filterArea) return acc;
-        if (filterArea === "All Area" && !activeAreasInFilter.has(areaKey))
+        if (filterAreaCode !== "All Area Code" && area.id !== filterAreaCode)
           return acc;
 
-        acc.plan.KOE += area.plan.KOE;
-        acc.plan.MER += area.plan.MER;
-        acc.plan.COM += area.plan.COM;
-        acc.plan.BA += area.plan.BA;
-        acc.approve.KOE += area.approve.KOE;
-        acc.approve.MER += area.approve.MER;
-        acc.approve.COM += area.approve.COM;
-        acc.approve.BA += area.approve.BA;
+        const isAreaActive =
+          activeAreasInFilter.has(areaNameUpper) ||
+          activeAreasInFilter.has(areaIdUpper);
+        if (filteredData.length > 0 && !isAreaActive) return acc;
+
+        const roles = ["KOE", "MER", "COM", "BA"];
+        roles.forEach((r) => {
+          if (filterRole !== "All Role" && r !== filterRole) return;
+          acc.plan[r] += area.plan[r] || 0;
+          acc.approve[r] += area.approve[r] || 0;
+        });
+
         return acc;
       },
       {
@@ -455,52 +490,54 @@ export default function CompleteManpowerWarRoom() {
         approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
       },
     );
-  }, [areaTargets, filteredData, filterArea]);
+  }, [areaTargets, filteredData, filterArea, filterAreaCode, filterRole]);
 
-  // 📈 3. ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend
-  const monthlyTimelineData = [
-    {
-      month: "2026-02",
-      Share: 7.3,
-      ปกติ: 70,
-      รอลงงาน: 10,
-      สรรหา: 15,
-      แจ้งลาออก: 5,
-    },
-    {
-      month: "2026-03",
-      Share: 25.4,
-      ปกติ: 74,
-      รอลงงาน: 8,
-      สรรหา: 12,
-      แจ้งลาออก: 6,
-    },
-    {
-      month: "2026-04",
-      Share: 24.8,
-      ปกติ: 76,
-      รอลงงาน: 7,
-      สรรหา: 13,
-      แจ้งลาออก: 4,
-    },
-    {
-      month: "2026-05",
-      Share: 25.8,
-      ปกติ: 77.5,
-      รอลงงาน: 5,
-      สรรหา: 15,
-      แจ้งลาออก: 2.5,
-    },
-    {
-      month: "2026-06",
-      Share: 16.5,
-      ปกติ: 78.2,
-      รอลงงาน: 4,
-      สรรหา: 14,
-      แจ้งลาออก: 3.8,
-    },
-  ];
+  // 📈 3. ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend (ปรับเปลี่ยนจาก Static เป็น Dynamic วิ่งตามฟิลเตอร์แล้วครับพี่!)
+  const monthlyTimelineData = useMemo(() => {
+    const monthsMap: Record<string, any> = {};
 
+    filteredData.forEach((item) => {
+      const y = item.year_num?.toString() || "2026";
+      const m = (item.month_num?.toString() || "").padStart(2, "0");
+      if (!m) return;
+      const key = `${y}-${m}`;
+
+      if (!monthsMap[key]) {
+        monthsMap[key] = {
+          month: key,
+          total: 0,
+          ปกติ: 0,
+          รอลงงาน: 0,
+          สรรหา: 0,
+          แจ้งลาออก: 0,
+        };
+      }
+
+      monthsMap[key].total += 1;
+      if (item.status_app === "ปกติ") monthsMap[key]["ปกติ"] += 1;
+      else if (item.status_app === "รอลงงาน") monthsMap[key]["รอลงงาน"] += 1;
+      else if (item.status_app === "สรรหา") monthsMap[key]["สรรหา"] += 1;
+      else if (item.status_app === "แจ้งลาออก")
+        monthsMap[key]["แจ้งลาออก"] += 1;
+    });
+
+    return Object.values(monthsMap)
+      .map((m: any) => {
+        const shareVal =
+          filteredData.length > 0 ? (m.total / filteredData.length) * 100 : 0;
+        return {
+          month: m.month,
+          Share: parseFloat(shareVal.toFixed(1)),
+          ปกติ: m["ปกติ"],
+          รอลงงาน: m["รอลงงาน"],
+          สรรหา: m["สรรหา"],
+          แจ้งลาออก: m["แจ้งลาออก"],
+        };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+  }, [filteredData]);
+
+  // 📋 ตัวแปรผลลัพธ์คำนวณจำนวนจริงที่จะส่งเข้าสู่ 6 กล่องด้านบนสุด
   const totalCount = filteredData.length;
   const activeCount = filteredData.filter(
     (d) => d.status_app === "ปกติ",
@@ -617,7 +654,6 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-          {/* 📅 ปรับให้แสดงวันเวลาปัจจุบันตามจริงของโลก ณ วินาทีที่พี่ยอดเปิดดูบอร์ดครับ */}
           <span className="text-slate-400 mr-2 flex items-center gap-1">
             <Calendar size={13} />{" "}
             {mounted
@@ -805,9 +841,8 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
 
-        {/* 📊 แผงควบคุมกล่องรวมสะสมชั้นนำตัวใหม่ (5 คอลลัมน์รวม TOTAL) */}
+        {/* แผงควบคุมกล่องรวมสะสมชั้นนำตัวใหม่ (5 คอลลัมน์รวม TOTAL) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-black">
-          {/* 📋 บล็อกคำนวณรวมฝั่ง Target Plan สะสม */}
           <div
             className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
           >
@@ -846,7 +881,6 @@ export default function CompleteManpowerWarRoom() {
             </div>
           </div>
 
-          {/* ✅ บล็อกคำนวณรวมฝั่ง Target Approve สะสม */}
           <div
             className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
           >
@@ -886,7 +920,7 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
 
-        {/* 🗺️ รายการแถวกล่องข้อมูลรายพื้นที่ย่อยแบบ Accordion (5 คอลัมน์พร้อมช่อง TOTAL) */}
+        {/* Accordion รายพื้นที่ */}
         <div className="space-y-3 text-xs font-bold pt-2">
           {areaTargets.map((area, idx) => (
             <div
@@ -915,7 +949,6 @@ export default function CompleteManpowerWarRoom() {
 
               {area.open && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
-                  {/* ฝั่งกรอกข้อมูลกรอบ Target Plan ประจำพื้นที่ */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-yellow-600 font-bold block">
                       Target Plan
@@ -941,7 +974,6 @@ export default function CompleteManpowerWarRoom() {
                           />
                         </div>
                       ))}
-                      {/* 🌟 ช่องรวมยอดแผนงานประจำพื้นที่ */}
                       <div
                         className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#242A3D] border-yellow-500/20 text-yellow-400" : "bg-yellow-50 border-yellow-200 text-yellow-600"}`}
                       >
@@ -958,10 +990,9 @@ export default function CompleteManpowerWarRoom() {
                     </div>
                   </div>
 
-                  {/* ฝั่งกรอกข้อมูลกรอบ Target Approve ประจำพื้นที่ */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-emerald-600 font-bold block">
-                      Target Approve (ช่องส่งไปประเมิน KPI)
+                      Target Approve
                     </span>
                     <div className="grid grid-cols-5 gap-2 text-center">
                       {["KOE", "MER", "COM", "BA"].map((r) => (
@@ -985,7 +1016,6 @@ export default function CompleteManpowerWarRoom() {
                           />
                         </div>
                       ))}
-                      {/* 🌟 ช่องรวมยอดอนุมัติจริงประจำพื้นที่ */}
                       <div
                         className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#1B2C2B] border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-600"}`}
                       >
@@ -1002,7 +1032,6 @@ export default function CompleteManpowerWarRoom() {
                     </div>
                   </div>
 
-                  {/* แถบปุ่มควบคุมท้ายบล็อก */}
                   <div
                     className={`flex items-center gap-2 lg:col-span-2 pt-2 border-t text-[10px] ${isDarkMode ? "border-slate-800/40" : "border-slate-200"}`}
                   >
@@ -1030,7 +1059,7 @@ export default function CompleteManpowerWarRoom() {
         </div>
       </div>
 
-      {/* Main Counter Blocks */}
+      {/* Main Counter Blocks (6 กล่องด้านบนสุดที่ผูกกับตัวแปรที่คัดกรองเสร็จสมบูรณ์เรียบร้อยครับพี่) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div
           className={`border p-3 rounded-xl flex items-center justify-between shadow-xl transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
@@ -1044,8 +1073,8 @@ export default function CompleteManpowerWarRoom() {
             >
               {totalCount.toLocaleString()}
             </h4>
-            <span className="text-[8px] bg-red-600/10 text-rose-400 px-1.5 py-0.5 rounded font-bold">
-              -38.7% MoM
+            <span className="text-[8px] bg-blue-600/10 text-blue-400 px-1.5 py-0.5 rounded font-bold">
+              Active Filtered
             </span>
           </div>
           <div className="p-2 bg-slate-800/80 text-slate-400 rounded-lg">
@@ -1225,7 +1254,7 @@ export default function CompleteManpowerWarRoom() {
             Headcount Trend (% share per month)
           </h4>
           <div className="h-56 w-full text-xs font-bold relative block">
-            {mounted ? (
+            {mounted && monthlyTimelineData.length > 0 ? (
               <ResponsiveContainer width="100%" height={224}>
                 <LineChart
                   data={monthlyTimelineData}
@@ -1251,7 +1280,7 @@ export default function CompleteManpowerWarRoom() {
               </ResponsiveContainer>
             ) : (
               <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs py-12">
-                กำลังสร้างกราฟเส้น...
+                ไม่มีข้อมูลเส้นประวัติแนวโน้มตามเงื่อนไขตัวกรอง
               </div>
             )}
           </div>
@@ -1460,9 +1489,9 @@ export default function CompleteManpowerWarRoom() {
             <ul className="space-y-2.5">
               <li>
                 <button
-                  onClick={() => {
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
+                  onClick={() =>
+                    window.scrollTo({ top: 0, behavior: "smooth" })
+                  }
                   className={`flex items-center gap-2 font-bold transition-colors ${isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
                 >
                   <ArrowUpDown size={13} className="text-slate-400" /> Dashboard
