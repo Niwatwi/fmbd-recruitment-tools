@@ -87,7 +87,7 @@ export default function CompleteManpowerWarRoom() {
   const [filterRole, setFilterRole] = useState("All Role");
   const [filterEmpType, setFilterEmpType] = useState("All Employee Type");
   const [filterStatus, setFilterStatus] = useState("All Status");
-  const [dateFrom, setDateFrom] = useState("2026-02-20");
+  const [dateFrom, setDateFrom] = useState("2026-01-01"); // ขยายดีฟอลต์ให้ครอบคลุมต้นปีครับพี่
   const [dateTo, setDateTo] = useState("2026-06-21");
 
   const [chartMode, setChartMode] = useState<"percent" | "count">("percent");
@@ -97,7 +97,7 @@ export default function CompleteManpowerWarRoom() {
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const rowsPerPage = 10;
 
-  // 🎯 คลังข้อมูลเป้าหมายพนักงาน (มีค่าดีฟอลต์สำรองรองรับ)
+  // 🎯 คลังข้อมูลเป้าหมายพนักงาน
   const [areaTargets, setAreaTargets] = useState<any[]>([
     {
       id: "K01",
@@ -354,8 +354,9 @@ export default function CompleteManpowerWarRoom() {
     setFilterRole("All Role");
     setFilterEmpType("All Employee Type");
     setFilterStatus("All Status");
-    setSearchTableTerm("");
+    setSearchTableTerm(""); // ✨ แก้จากเดิมที่ไม่มีคำว่า set ครับพี่
     setCurrentPage(1);
+    setDateFrom("2026-01-01");
 
     const today = new Date();
     setDateTo(
@@ -383,24 +384,47 @@ export default function CompleteManpowerWarRoom() {
     });
   };
 
-  // 📊 1. [ต้องอยู่บนสุด] กรองข้อมูลดิบหลักแบบเข้มงวดสูง (ทลายบั๊ก String Mismatch & Date Format)
+  // 📊 1. บล็อกกรองข้อมูลหลักอัจฉริยะ (ยึดตามวันที่และคอลัมน์ status_app ตามสูตรของพี่ยอด)
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
-      // ➔ กรองตามปี
+      let itemYear = item.year_num ? parseInt(item.year_num, 10) : null;
+      let itemMonth = item.month_num ? parseInt(item.month_num, 10) : null;
+      let cleanItemDate = null;
+
+      if (item.date_stamp) {
+        const dateNums = item.date_stamp.toString().match(/\d+/g);
+        if (dateNums && dateNums.length >= 3) {
+          let day = dateNums[0];
+          let month = dateNums[1];
+          let year = dateNums[2];
+
+          if (dateNums[0].length === 4) {
+            year = dateNums[0];
+            month = dateNums[1];
+            day = dateNums[2];
+          }
+
+          itemYear = parseInt(year, 10);
+          itemMonth = parseInt(month, 10);
+          cleanItemDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+        }
+      }
+
       if (filterYear !== "All Year") {
-        const itemYear = parseInt(item.year_num, 10);
         const selectedYear = parseInt(filterYear, 10);
-        if (isNaN(itemYear) || itemYear !== selectedYear) return false;
+        if (itemYear !== selectedYear) return false;
       }
 
-      // ➔ กรองตามเดือน (ใช้ ParseInt เพื่อแก้บั๊กเรื่องเลข "6" กับ "06")
       if (filterMonth !== "All Month") {
-        const itemMonth = parseInt(item.month_num, 10);
         const selectedMonth = parseInt(filterMonth, 10);
-        if (isNaN(itemMonth) || itemMonth !== selectedMonth) return false;
+        if (itemMonth !== selectedMonth) return false;
       }
 
-      // ➔ กรองตามพื้นที่ สายงาน และสถานะทั่วไป
+      if (cleanItemDate) {
+        if (dateFrom && cleanItemDate < dateFrom) return false;
+        if (dateTo && cleanItemDate > dateTo) return false;
+      }
+
       if (filterArea !== "All Area" && item.area !== filterArea) return false;
       if (
         filterAreaCode !== "All Area Code" &&
@@ -416,26 +440,6 @@ export default function CompleteManpowerWarRoom() {
       if (filterStatus !== "All Status" && item.status_app !== filterStatus)
         return false;
 
-      // ➔ กรองช่วงวันที่แบบทลายบั๊กด้วยการสกัด Regex จับหลักปี-เดือน-วัน สากลครับพี่
-      if (item.date_stamp) {
-        const dateNums = item.date_stamp.toString().match(/\d+/g);
-        if (dateNums && dateNums.length >= 3) {
-          let year = dateNums[2];
-          let month = dateNums[1].padStart(2, "0");
-          let day = dateNums[0].padStart(2, "0");
-
-          if (dateNums[0].length === 4) {
-            year = dateNums[0];
-            month = dateNums[1].padStart(2, "0");
-            day = dateNums[2].padStart(2, "0");
-          }
-
-          const cleanItemDate = `${year}-${month}-${day}`;
-
-          if (dateFrom && cleanItemDate < dateFrom) return false;
-          if (dateTo && cleanItemDate > dateTo) return false;
-        }
-      }
       return true;
     });
   }, [
@@ -450,6 +454,24 @@ export default function CompleteManpowerWarRoom() {
     dateFrom,
     dateTo,
   ]);
+
+  // 📋 ✨ คำนวณแกนสถิติตัวแปรหลักตรงนี้ที่เดียวจบ (ลบชุดซ้ำด้านล่างออกแล้วครับ)
+  const totalCount = filteredData.length;
+  const activeCount = filteredData.filter(
+    (d) => d.status_app === "ปกติ",
+  ).length;
+  const waitingCount = filteredData.filter(
+    (d) => d.status_app === "รอลงงาน",
+  ).length;
+  const recruitingCount = filteredData.filter(
+    (d) => d.status_app === "สรรหา",
+  ).length;
+  const resignedCount = filteredData.filter(
+    (d) => d.status_app === "แจ้งลาออก",
+  ).length;
+  const suspendedCount = filteredData.filter(
+    (d) => d.status_app === "ระงับการใช้งาน",
+  ).length;
 
   // 📈 2. คำนวณยอดเป้าหมายสะสมและคอลัมน์ TOTAL ให้ผันแปรแมตช์ตามตัวกรองด้านบน
   const globalTargetSum = useMemo(() => {
@@ -492,7 +514,7 @@ export default function CompleteManpowerWarRoom() {
     );
   }, [areaTargets, filteredData, filterArea, filterAreaCode, filterRole]);
 
-  // 📈 3. ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend (ปรับเปลี่ยนจาก Static เป็น Dynamic วิ่งตามฟิลเตอร์แล้วครับพี่!)
+  // 📈 3. ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend
   const monthlyTimelineData = useMemo(() => {
     const monthsMap: Record<string, any> = {};
 
@@ -536,24 +558,6 @@ export default function CompleteManpowerWarRoom() {
       })
       .sort((a, b) => a.month.localeCompare(b.month));
   }, [filteredData]);
-
-  // 📋 ตัวแปรผลลัพธ์คำนวณจำนวนจริงที่จะส่งเข้าสู่ 6 กล่องด้านบนสุด
-  const totalCount = filteredData.length;
-  const activeCount = filteredData.filter(
-    (d) => d.status_app === "ปกติ",
-  ).length;
-  const waitingCount = filteredData.filter(
-    (d) => d.status_app === "รอลงงาน",
-  ).length;
-  const recruitingCount = filteredData.filter(
-    (d) => d.status_app === "สรรหา",
-  ).length;
-  const resignedCount = filteredData.filter(
-    (d) => d.status_app === "แจ้งลาออก",
-  ).length;
-  const suspendedCount = filteredData.filter(
-    (d) => d.status_app === "ระงับการใช้งาน",
-  ).length;
 
   const pieStatusData = [
     { name: "ปกติ", value: activeCount },
@@ -774,7 +778,20 @@ export default function CompleteManpowerWarRoom() {
             </select>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-1 text-xs font-bold">
+
+        {/* ✨ เพิ่มกล่อง Date From คู่ขนานสยบบั๊กกรองเวลาซ่อนแอบเรียบร้อยครับพี่ */}
+        <div className="flex flex-col sm:flex-row items-end gap-3 pt-1 text-xs font-bold">
+          <div className="w-full sm:w-1/4">
+            <label className="block text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">
+              Date From
+            </label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className={`w-full border rounded-xl px-3 py-1.5 outline-none font-black ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
+            />
+          </div>
           <div className="w-full sm:w-1/4">
             <label className="block text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">
               Date To
@@ -795,7 +812,7 @@ export default function CompleteManpowerWarRoom() {
         </div>
       </div>
 
-      {/* Target Summary Section & Configuration Console */}
+      {/* Target Summary Section */}
       <div
         className={`border rounded-2xl p-5 shadow-2xl space-y-5 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
       >
@@ -841,7 +858,7 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
 
-        {/* แผงควบคุมกล่องรวมสะสมชั้นนำตัวใหม่ (5 คอลลัมน์รวม TOTAL) */}
+        {/* แผงควบคุมกล่องรวมสะสมชั้นนำตัวใหม่ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-black">
           <div
             className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
@@ -1059,7 +1076,7 @@ export default function CompleteManpowerWarRoom() {
         </div>
       </div>
 
-      {/* Main Counter Blocks (6 กล่องด้านบนสุดที่ผูกกับตัวแปรที่คัดกรองเสร็จสมบูรณ์เรียบร้อยครับพี่) */}
+      {/* Main Counter Blocks */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div
           className={`border p-3 rounded-xl flex items-center justify-between shadow-xl transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
