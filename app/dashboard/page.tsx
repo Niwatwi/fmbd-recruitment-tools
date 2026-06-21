@@ -369,70 +369,7 @@ export default function CompleteManpowerWarRoom() {
     });
   };
 
-  // 📈 ลอจิกคำนวณสะสมรวมของ Area แยกตามฟิลเตอร์หลัก
-  const globalTargetSum = areaTargets.reduce(
-    (acc, area) => {
-      if (filterArea !== "All Area" && area.name !== filterArea) return acc;
-      acc.plan.KOE += area.plan.KOE;
-      acc.plan.MER += area.plan.MER;
-      acc.plan.COM += area.plan.COM;
-      acc.plan.BA += area.plan.BA;
-      acc.approve.KOE += area.approve.KOE;
-      acc.approve.MER += area.approve.MER;
-      acc.approve.COM += area.approve.COM;
-      acc.approve.BA += area.approve.BA;
-      return acc;
-    },
-    {
-      plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
-      approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
-    },
-  );
-
-  // 📈 ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend
-  const monthlyTimelineData = [
-    {
-      month: "2026-02",
-      Share: 7.3,
-      ปกติ: 70,
-      รอลงงาน: 10,
-      สรรหา: 15,
-      แจ้งลาออก: 5,
-    },
-    {
-      month: "2026-03",
-      Share: 25.4,
-      ปกติ: 74,
-      รอลงงาน: 8,
-      สรรหา: 12,
-      แจ้งลาออก: 6,
-    },
-    {
-      month: "2026-04",
-      Share: 24.8,
-      ปกติ: 76,
-      รอลงงาน: 7,
-      สรรหา: 13,
-      แจ้งลาออก: 4,
-    },
-    {
-      month: "2026-05",
-      Share: 25.8,
-      ปกติ: 77.5,
-      รอลงงาน: 5,
-      สรรหา: 15,
-      แจ้งลาออก: 2.5,
-    },
-    {
-      month: "2026-06",
-      Share: 16.5,
-      ปกติ: 78.2,
-      รอลงงาน: 4,
-      สรรหา: 14,
-      แจ้งลาออก: 3.8,
-    },
-  ];
-
+  // 📊 1. [ต้องอยู่บนสุด] กรองข้อมูลดิบหลัก ผูกตัวแปรเวลากับปฏิทิน June
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
       if (filterYear !== "All Year" && item.year_num?.toString() !== filterYear)
@@ -479,6 +416,81 @@ export default function CompleteManpowerWarRoom() {
     dateFrom,
     dateTo,
   ]);
+
+  // 📈 2. [มาวางต่อท้าย] คำนวณยอดเป้าหมายสะสมและคอลัมน์ TOTAL ให้ผันแปรตามตัวกรองเวลาด้านบนเรียบร้อยครับพี่
+  const globalTargetSum = useMemo(() => {
+    const activeAreasInFilter = new Set(
+      filteredData.map((d) => d.area?.toString().trim().toUpperCase()),
+    );
+
+    return areaTargets.reduce(
+      (acc, area) => {
+        const areaKey = area.name?.toString().trim().toUpperCase();
+
+        if (filterArea !== "All Area" && area.name !== filterArea) return acc;
+        if (filterArea === "All Area" && !activeAreasInFilter.has(areaKey))
+          return acc;
+
+        acc.plan.KOE += area.plan.KOE;
+        acc.plan.MER += area.plan.MER;
+        acc.plan.COM += area.plan.COM;
+        acc.plan.BA += area.plan.BA;
+        acc.approve.KOE += area.approve.KOE;
+        acc.approve.MER += area.approve.MER;
+        acc.approve.COM += area.approve.COM;
+        acc.approve.BA += area.approve.BA;
+        return acc;
+      },
+      {
+        plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+        approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+      },
+    );
+  }, [areaTargets, filteredData, filterArea]);
+
+  // 📈 3. ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend
+  const monthlyTimelineData = [
+    {
+      month: "2026-02",
+      Share: 7.3,
+      ปกติ: 70,
+      รอลงงาน: 10,
+      สรรหา: 15,
+      แจ้งลาออก: 5,
+    },
+    {
+      month: "2026-03",
+      Share: 25.4,
+      ปกติ: 74,
+      รอลงงาน: 8,
+      สรรหา: 12,
+      แจ้งลาออก: 6,
+    },
+    {
+      month: "2026-04",
+      Share: 24.8,
+      ปกติ: 76,
+      รอลงงาน: 7,
+      สรรหา: 13,
+      แจ้งลาออก: 4,
+    },
+    {
+      month: "2026-05",
+      Share: 25.8,
+      ปกติ: 77.5,
+      รอลงงาน: 5,
+      สรรหา: 15,
+      แจ้งลาออก: 2.5,
+    },
+    {
+      month: "2026-06",
+      Share: 16.5,
+      ปกติ: 78.2,
+      รอลงงาน: 4,
+      สรรหา: 14,
+      แจ้งลาออก: 3.8,
+    },
+  ];
 
   const totalCount = filteredData.length;
   const activeCount = filteredData.filter(
