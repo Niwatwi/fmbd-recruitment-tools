@@ -301,6 +301,15 @@ export default function CompleteManpowerWarRoom() {
   useEffect(() => {
     fetchWarRoomDatabase();
     setMounted(true);
+
+    // 📆 🤖 จุดปลดล็อก: คำนวณหาค่าวันปัจจุบัน (Today) ของทุกวันแบบอัตโนมัติ
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0"); // เติมเลข 0 ข้างหน้าถ้าเป็นเลขหลักเดียว
+    const dd = String(today.getDate()).padStart(2, "0");
+
+    // สั่งเซฟลงสเตตดักหน้าปฏิทินให้เป็นวันล่าสุดของวันนี้ทันทีครับพี่ยอด
+    setDateTo(`${yyyy}-${mm}-${dd}`);
   }, []);
 
   // 📊 UseMemo รวบรวมฟิลเตอร์
@@ -608,8 +617,17 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+          {/* 📅 ปรับให้แสดงวันเวลาปัจจุบันตามจริงของโลก ณ วินาทีที่พี่ยอดเปิดดูบอร์ดครับ */}
           <span className="text-slate-400 mr-2 flex items-center gap-1">
-            <Calendar size={13} /> Fri, 19 Jun 2026
+            <Calendar size={13} />{" "}
+            {mounted
+              ? new Date().toLocaleDateString("en-US", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "Loading..."}
           </span>
           <button
             onClick={fetchWarRoomDatabase}
