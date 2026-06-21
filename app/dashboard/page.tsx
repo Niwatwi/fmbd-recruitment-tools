@@ -15,23 +15,16 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
-  Filter,
-  CheckCircle,
   LogOut,
   Sun,
   Moon,
   Trophy,
   ArrowUpDown,
   Building2,
-  MapPin,
   Mail,
-  Phone,
-  Globe,
-  ExternalLink,
-  FileText,
-  HelpCircle,
   ShieldCheck,
-  Save, // ✨ เพิ่มไอคอนเซฟสำหรับใช้งานปุ่มบันทึกครับพี่ยอด
+  FileText,
+  Save,
 } from "lucide-react";
 import {
   PieChart,
@@ -45,10 +38,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
 } from "recharts";
 
 // 🎨 Palette สีมาตรฐานสำหรับวงจรชีวิตกำลังพล
@@ -66,17 +55,6 @@ const TYPE_COLORS = {
   KOE: "#3b82f6",
   MER: "#ea580c",
 };
-
-const BAR_COLORS = [
-  "#3b82f6",
-  "#10b981",
-  "#6366f1",
-  "#f59e0b",
-  "#ec4899",
-  "#8b5cf6",
-  "#f97316",
-  "#14b8a6",
-];
 
 const MONTH_NAMES: any = {
   "1": "January",
@@ -97,7 +75,7 @@ export default function CompleteManpowerWarRoom() {
   const router = useRouter();
   const [rawData, setRawData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSavingTarget, setIsSavingTarget] = useState(false); // สเตทควบคุมจังหวะกดบันทึก
+  const [isSavingTarget, setIsSavingTarget] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -180,7 +158,7 @@ export default function CompleteManpowerWarRoom() {
   ]);
   const [selectedAreaInput, setSelectedAreaInput] = useState("");
 
-  // 🔄 1. ปรับฟังก์ชันโหลดข้อมูลให้ดึงข้อมูลจากตาราง area_targets มาแสดงผลด้วยแบบเรียลไทม์
+  // 🔄 ฟังก์ชันโหลดข้อมูลหลัก
   const fetchWarRoomDatabase = async () => {
     setLoading(true);
     try {
@@ -188,7 +166,6 @@ export default function CompleteManpowerWarRoom() {
       if (error) throw error;
       if (data) setRawData(data);
 
-      // ดึงข้อมูล Target ชุดล่าสุดจากในตารางหลังบ้าน Supabase
       const { data: targetsData, error: targetsError } = await supabase
         .from("area_targets")
         .select("*");
@@ -276,13 +253,11 @@ export default function CompleteManpowerWarRoom() {
     }
   };
 
-  // 💾 2. ฟังก์ชันหลักสำหรับยิงบันทึกค่าโควตาอัตรากำลังพลลงฐานข้อมูล Supabase
+  // 💾 ฟังก์ชันยิงบันทึกค่าโควตาลงฐานข้อมูล Supabase
   const handleSaveTargetsToSupabase = async () => {
     setIsSavingTarget(true);
     try {
       const rowsToUpsert: any[] = [];
-
-      // แตกขยาย Object ของหน้าจอแผงควบคุมให้กลายเป็นโครงสร้างแถวรายตัวเพื่อบันทึก
       areaTargets.forEach((areaItem) => {
         ["KOE", "MER", "COM", "BA"].forEach((roleKey) => {
           rowsToUpsert.push({
@@ -293,7 +268,6 @@ export default function CompleteManpowerWarRoom() {
         });
       });
 
-      // ยิงคำสั่งเซฟทับตัวเก่าถ้ารหัสพื้นที่และตำแหน่งงานตรงล็อกเดิม (Upsert Engine)
       const { error } = await supabase
         .from("area_targets")
         .upsert(rowsToUpsert, { onConflict: "area,role" });
@@ -329,6 +303,7 @@ export default function CompleteManpowerWarRoom() {
     setMounted(true);
   }, []);
 
+  // 📊 UseMemo รวบรวมฟิลเตอร์
   const availableYears = useMemo(
     () => [
       "All Year",
@@ -358,29 +333,6 @@ export default function CompleteManpowerWarRoom() {
     () => [
       "All Area Code",
       ...Array.from(new Set(rawData.map((d) => d.area_code).filter(Boolean))),
-    ],
-    [rawData],
-  );
-  const availableRoles = useMemo(
-    () => [
-      "All Role",
-      ...Array.from(new Set(rawData.map((d) => d.role).filter(Boolean))),
-    ],
-    [rawData],
-  );
-  const availableEmpTypes = useMemo(
-    () => [
-      "All Employee Type",
-      ...Array.from(
-        new Set(rawData.map((d) => d.employee_type).filter(Boolean)),
-      ),
-    ],
-    [rawData],
-  );
-  const availableStatuses = useMemo(
-    () => [
-      "All Status",
-      ...Array.from(new Set(rawData.map((d) => d.status_app).filter(Boolean))),
     ],
     [rawData],
   );
@@ -417,8 +369,10 @@ export default function CompleteManpowerWarRoom() {
     });
   };
 
+  // 📈 ลอจิกคำนวณสะสมรวมของ Area แยกตามฟิลเตอร์หลัก
   const globalTargetSum = areaTargets.reduce(
     (acc, area) => {
+      if (filterArea !== "All Area" && area.name !== filterArea) return acc;
       acc.plan.KOE += area.plan.KOE;
       acc.plan.MER += area.plan.MER;
       acc.plan.COM += area.plan.COM;
@@ -434,6 +388,50 @@ export default function CompleteManpowerWarRoom() {
       approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
     },
   );
+
+  // 📈 ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend
+  const monthlyTimelineData = [
+    {
+      month: "2026-02",
+      Share: 7.3,
+      ปกติ: 70,
+      รอลงงาน: 10,
+      สรรหา: 15,
+      แจ้งลาออก: 5,
+    },
+    {
+      month: "2026-03",
+      Share: 25.4,
+      ปกติ: 74,
+      รอลงงาน: 8,
+      สรรหา: 12,
+      แจ้งลาออก: 6,
+    },
+    {
+      month: "2026-04",
+      Share: 24.8,
+      ปกติ: 76,
+      รอลงงาน: 7,
+      สรรหา: 13,
+      แจ้งลาออก: 4,
+    },
+    {
+      month: "2026-05",
+      Share: 25.8,
+      ปกติ: 77.5,
+      รอลงงาน: 5,
+      สรรหา: 15,
+      แจ้งลาออก: 2.5,
+    },
+    {
+      month: "2026-06",
+      Share: 16.5,
+      ปกติ: 78.2,
+      รอลงงาน: 4,
+      สรรหา: 14,
+      แจ้งลาออก: 3.8,
+    },
+  ];
 
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
@@ -513,67 +511,6 @@ export default function CompleteManpowerWarRoom() {
       value: filteredData.filter((d) => d.employee_type === type).length,
     }))
     .filter((v) => v.value > 0);
-
-  const monthlyTimelineData = [
-    {
-      month: "2026-02",
-      Share: 7.3,
-      ปกติ: 70,
-      รอลงงาน: 10,
-      สรรหา: 15,
-      แจ้งลาออก: 5,
-    },
-    {
-      month: "2026-03",
-      Share: 25.4,
-      ปกติ: 74,
-      รอลงงาน: 8,
-      สรรหา: 12,
-      แจ้งลาออก: 6,
-    },
-    {
-      month: "2026-04",
-      Share: 24.8,
-      ปกติ: 76,
-      รอลงงาน: 7,
-      สรรหา: 13,
-      แจ้งลาออก: 4,
-    },
-    {
-      month: "2026-05",
-      Share: 25.8,
-      ปกติ: 77.5,
-      รอลงงาน: 5,
-      สรรหา: 15,
-      แจ้งลาออก: 2.5,
-    },
-    {
-      month: "2026-06",
-      Share: 16.5,
-      ปกติ: 78.2,
-      รอลงงาน: 4,
-      สรรหา: 14,
-      แจ้งลาออก: 3.8,
-    },
-  ];
-
-  const areaCodeList = Array.from(
-    new Set(filteredData.map((d) => d.area).filter(Boolean)),
-  );
-  const barChartAreaProps = areaCodeList
-    .map((areaName) => {
-      const areaSubset = filteredData.filter((d) => d.area === areaName).length;
-      return {
-        name: areaName,
-        percentage:
-          totalCount > 0
-            ? parseFloat(((areaSubset / totalCount) * 100).toFixed(1))
-            : 0,
-        count: areaSubset,
-      };
-    })
-    .sort((a, b) => b.percentage - a.percentage)
-    .slice(0, 8);
 
   const handleAddNewAreaBlock = () => {
     if (
@@ -693,7 +630,7 @@ export default function CompleteManpowerWarRoom() {
       <div
         className={`border rounded-2xl p-5 shadow-xl space-y-4 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
       >
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 text-xs font-bold">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-bold">
           <div>
             <label className="block text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">
               Year
@@ -792,80 +729,16 @@ export default function CompleteManpowerWarRoom() {
         </div>
       </div>
 
-      {/* Target Summary Section */}
+      {/* Target Summary Section & Configuration Console */}
       <div
-        className={`border rounded-2xl p-5 shadow-2xl space-y-4 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+        className={`border rounded-2xl p-5 shadow-2xl space-y-5 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
       >
-        <h3
-          className={`text-sm font-black flex items-center gap-1.5 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-        >
-          🎯 Target Settings (คำนวณสะสมรวมอัตโนมัติจากเขตย่อย)
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-black">
-          <div
-            className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-3 border-slate-800/40">
+          <h3
+            className={`text-sm font-black flex items-center gap-1.5 ${isDarkMode ? "text-white" : "text-slate-900"}`}
           >
-            <span className="text-yellow-500 text-[11px] uppercase block">
-              📋 Total Target Plan สะสม
-            </span>
-            <div className="grid grid-cols-4 gap-2 text-center text-sm">
-              {["KOE", "MER", "COM", "BA"].map((r) => (
-                <div
-                  key={r}
-                  className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
-                >
-                  <span className="text-[10px] text-slate-500 block">{r}</span>
-                  <span
-                    className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                  >
-                    {(globalTargetSum.plan as any)[r]}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div
-            className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
-          >
-            <span className="text-emerald-500 text-[11px] uppercase block">
-              ✅ Total Target Approve สะสม
-            </span>
-            <div className="grid grid-cols-4 gap-2 text-center text-sm">
-              {["KOE", "MER", "COM", "BA"].map((r) => (
-                <div
-                  key={r}
-                  className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
-                >
-                  <span className="text-[10px] text-slate-500 block">{r}</span>
-                  <span
-                    className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                  >
-                    {(globalTargetSum.approve as any)[r]}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Target By Area Block */}
-      <div
-        className={`border rounded-2xl p-5 shadow-2xl space-y-4 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
-      >
-        <div
-          className={`flex flex-col sm:flex-row items-center justify-between gap-3 border-b pb-3 ${isDarkMode ? "border-slate-800/60" : "border-slate-200"}`}
-        >
-          <div>
-            <h4
-              className={`text-sm font-black flex items-center gap-1.5 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-            >
-              📍 Target by Area (คีย์และปรับแต่งรายพื้นที่)
-            </h4>
-            <p className="text-[10px] text-slate-400">
-              ระบุหรือถอนรายชื่อเขตพื้นที่ปฏิบัติการเพื่อควบคุมเป้าหมายกำลังพลรายสาขา
-            </p>
-          </div>
+            🎯 Target Configuration Board (กรอบอัตรากำลังพลสะสม)
+          </h3>
           <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
             <select
               value={selectedAreaInput}
@@ -873,14 +746,13 @@ export default function CompleteManpowerWarRoom() {
               className={`border px-2 py-1.5 rounded-xl outline-none font-bold ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800"}`}
             >
               <option value="">เลือก Area เพื่อเพิ่ม Target</option>
-              <option value="K01">K01</option>
-              <option value="K02">K02</option>
-              <option value="K03">K03</option>
-              <option value="K04">K04</option>
-              <option value="K05">K05</option>
-              <option value="K06">K06</option>
-              <option value="K07">K07</option>
-              <option value="K08">K08</option>
+              {["K01", "K02", "K03", "K04", "K05", "K06", "K07", "K08"].map(
+                (v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ),
+              )}
             </select>
             <button
               onClick={handleAddNewAreaBlock}
@@ -888,8 +760,6 @@ export default function CompleteManpowerWarRoom() {
             >
               <Plus size={13} /> เพิ่ม Area
             </button>
-
-            {/* 💾 ปุ่มส่งค่าขึ้น Supabase ตัวเก่งที่เพิ่มขึ้นมาใหม่ครับพี่ยอด */}
             <button
               onClick={handleSaveTargetsToSupabase}
               disabled={isSavingTarget}
@@ -905,11 +775,93 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
 
-        <div className="space-y-3 text-xs font-bold">
+        {/* 📊 แผงควบคุมกล่องรวมสะสมชั้นนำตัวใหม่ (5 คอลลัมน์รวม TOTAL) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-black">
+          {/* 📋 บล็อกคำนวณรวมฝั่ง Target Plan สะสม */}
+          <div
+            className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
+          >
+            <span className="text-yellow-500 text-[11px] uppercase block font-black">
+              📋 Total Target Plan สะสม
+            </span>
+            <div className="grid grid-cols-5 gap-2 text-center text-sm">
+              {["KOE", "MER", "COM", "BA"].map((r) => (
+                <div
+                  key={r}
+                  className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
+                >
+                  <span className="text-[10px] text-slate-500 block font-bold">
+                    {r}
+                  </span>
+                  <span
+                    className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                  >
+                    {(globalTargetSum.plan as any)[r]}
+                  </span>
+                </div>
+              ))}
+              <div
+                className={`p-2 rounded-lg border ${isDarkMode ? "bg-yellow-500/10 border-yellow-500/20" : "bg-yellow-50 border-yellow-200"}`}
+              >
+                <span className="text-[10px] text-yellow-500 block font-black">
+                  TOTAL
+                </span>
+                <span className="font-mono text-base font-black text-yellow-500">
+                  {globalTargetSum.plan.KOE +
+                    globalTargetSum.plan.MER +
+                    globalTargetSum.plan.COM +
+                    globalTargetSum.plan.BA}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ✅ บล็อกคำนวณรวมฝั่ง Target Approve สะสม */}
+          <div
+            className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
+          >
+            <span className="text-emerald-500 text-[11px] uppercase block font-black">
+              ✅ Total Target Approve สะสม
+            </span>
+            <div className="grid grid-cols-5 gap-2 text-center text-sm">
+              {["KOE", "MER", "COM", "BA"].map((r) => (
+                <div
+                  key={r}
+                  className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
+                >
+                  <span className="text-[10px] text-slate-500 block font-bold">
+                    {r}
+                  </span>
+                  <span
+                    className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                  >
+                    {(globalTargetSum.approve as any)[r]}
+                  </span>
+                </div>
+              ))}
+              <div
+                className={`p-2 rounded-lg border ${isDarkMode ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"}`}
+              >
+                <span className="text-[10px] text-emerald-500 block font-black">
+                  TOTAL
+                </span>
+                <span className="font-mono text-base font-black text-emerald-500">
+                  {globalTargetSum.approve.KOE +
+                    globalTargetSum.approve.MER +
+                    globalTargetSum.approve.COM +
+                    globalTargetSum.approve.BA}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 🗺️ รายการแถวกล่องข้อมูลรายพื้นที่ย่อยแบบ Accordion (5 คอลัมน์พร้อมช่อง TOTAL) */}
+        <div className="space-y-3 text-xs font-bold pt-2">
           {areaTargets.map((area, idx) => (
             <div
               key={area.id}
-              className={`border rounded-xl p-4 space-y-3 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
+              className={`border rounded-xl p-4 space-y-3 transition-colors duration-300 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
             >
               <div className="flex items-center justify-between">
                 <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-black text-[10px]">
@@ -933,11 +885,12 @@ export default function CompleteManpowerWarRoom() {
 
               {area.open && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+                  {/* ฝั่งกรอกข้อมูลกรอบ Target Plan ประจำพื้นที่ */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-yellow-600 font-bold block">
                       Target Plan
                     </span>
-                    <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="grid grid-cols-5 gap-2 text-center">
                       {["KOE", "MER", "COM", "BA"].map((r) => (
                         <div
                           key={r}
@@ -958,14 +911,29 @@ export default function CompleteManpowerWarRoom() {
                           />
                         </div>
                       ))}
+                      {/* 🌟 ช่องรวมยอดแผนงานประจำพื้นที่ */}
+                      <div
+                        className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#242A3D] border-yellow-500/20 text-yellow-400" : "bg-yellow-50 border-yellow-200 text-yellow-600"}`}
+                      >
+                        <span className="text-[9px] opacity-70 block font-black">
+                          TOTAL
+                        </span>
+                        <span className="font-mono font-black text-xs">
+                          {area.plan.KOE +
+                            area.plan.MER +
+                            area.plan.COM +
+                            area.plan.BA}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
+                  {/* ฝั่งกรอกข้อมูลกรอบ Target Approve ประจำพื้นที่ */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-emerald-600 font-bold block">
                       Target Approve (ช่องส่งไปประเมิน KPI)
                     </span>
-                    <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="grid grid-cols-5 gap-2 text-center">
                       {["KOE", "MER", "COM", "BA"].map((r) => (
                         <div
                           key={r}
@@ -987,9 +955,24 @@ export default function CompleteManpowerWarRoom() {
                           />
                         </div>
                       ))}
+                      {/* 🌟 ช่องรวมยอดอนุมัติจริงประจำพื้นที่ */}
+                      <div
+                        className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#1B2C2B] border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-600"}`}
+                      >
+                        <span className="text-[9px] opacity-70 block font-black">
+                          TOTAL
+                        </span>
+                        <span className="font-mono font-black text-xs">
+                          {area.approve.KOE +
+                            area.approve.MER +
+                            area.approve.COM +
+                            area.approve.BA}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
+                  {/* แถบปุ่มควบคุมท้ายบล็อก */}
                   <div
                     className={`flex items-center gap-2 lg:col-span-2 pt-2 border-t text-[10px] ${isDarkMode ? "border-slate-800/40" : "border-slate-200"}`}
                   >
