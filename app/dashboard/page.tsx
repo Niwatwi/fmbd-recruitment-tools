@@ -110,14 +110,14 @@ export default function CompleteManpowerWarRoom() {
       id: "K02",
       name: "K02",
       open: true,
-      plan: { KOE: 1, MER: 4, COM: 0, BA: 1 },
+      plan: { KOE: 1, MER: 5, COM: 0, BA: 1 },
       approve: { KOE: 1, MER: 2, COM: 0, BA: 1 },
     },
     {
       id: "K03",
       name: "K03",
       open: false,
-      plan: { KOE: 2, MER: 10, COM: 1, BA: 2 },
+      plan: { KOE: 1, MER: 10, COM: 1, BA: 2 },
       approve: { KOE: 1, MER: 8, COM: 1, BA: 2 },
     },
     {
@@ -138,7 +138,7 @@ export default function CompleteManpowerWarRoom() {
       id: "K06",
       name: "K06",
       open: false,
-      plan: { KOE: 2, MER: 15, COM: 1, BA: 2 },
+      plan: { KOE: 1, MER: 15, COM: 1, BA: 2 },
       approve: { KOE: 1, MER: 12, COM: 1, BA: 2 },
     },
     {
@@ -151,6 +151,20 @@ export default function CompleteManpowerWarRoom() {
     {
       id: "K08",
       name: "K08",
+      open: false,
+      plan: { KOE: 1, MER: 10, COM: 0, BA: 1 },
+      approve: { KOE: 1, MER: 10, COM: 0, BA: 1 },
+    },
+    {
+      id: "K09",
+      name: "K09",
+      open: false,
+      plan: { KOE: 1, MER: 10, COM: 0, BA: 1 },
+      approve: { KOE: 1, MER: 10, COM: 0, BA: 1 },
+    },
+    {
+      id: "K10",
+      name: "K10",
       open: false,
       plan: { KOE: 1, MER: 10, COM: 0, BA: 1 },
       approve: { KOE: 1, MER: 10, COM: 0, BA: 1 },
@@ -228,6 +242,20 @@ export default function CompleteManpowerWarRoom() {
             plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
             approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
           },
+          K09: {
+            id: "K09",
+            name: "K09",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K10: {
+            id: "K10",
+            name: "K10",
+            open: false,
+            plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
         };
 
         targetsData.forEach((row: any) => {
@@ -238,6 +266,16 @@ export default function CompleteManpowerWarRoom() {
             ? row.role.toString().trim().toUpperCase()
             : "";
           const approveValue = row.target_approve || 0;
+
+          if (areaKey && !baseMap[areaKey]) {
+            baseMap[areaKey] = {
+              id: areaKey,
+              name: areaKey,
+              open: false,
+              plan: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+              approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+            };
+          }
 
           if (baseMap[areaKey]) {
             baseMap[areaKey].approve[roleKey] = approveValue;
@@ -475,28 +513,12 @@ export default function CompleteManpowerWarRoom() {
 
   // 📈 2. คำนวณยอดเป้าหมายสะสมและคอลัมน์ TOTAL ให้ผันแปรแมตช์ตามตัวกรองด้านบน
   const globalTargetSum = useMemo(() => {
-    const activeAreasInFilter = new Set(
-      filteredData
-        .flatMap((d) => [
-          d.area?.toString().trim().toUpperCase(),
-          d.area_code?.toString().trim().toUpperCase(),
-        ])
-        .filter(Boolean),
-    );
-
     return areaTargets.reduce(
       (acc, area) => {
-        const areaNameUpper = area.name?.toString().trim().toUpperCase();
-        const areaIdUpper = area.id?.toString().trim().toUpperCase();
-
+        // ดักฟิลเตอร์เฉพาะกรณีเลือก Area เจาะจงจากด้านบน
         if (filterArea !== "All Area" && area.name !== filterArea) return acc;
         if (filterAreaCode !== "All Area Code" && area.id !== filterAreaCode)
           return acc;
-
-        const isAreaActive =
-          activeAreasInFilter.has(areaNameUpper) ||
-          activeAreasInFilter.has(areaIdUpper);
-        if (filteredData.length > 0 && !isAreaActive) return acc;
 
         const roles = ["KOE", "MER", "COM", "BA"];
         roles.forEach((r) => {
@@ -512,7 +534,7 @@ export default function CompleteManpowerWarRoom() {
         approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
       },
     );
-  }, [areaTargets, filteredData, filterArea, filterAreaCode, filterRole]);
+  }, [areaTargets, filterArea, filterAreaCode, filterRole]); // เอา filteredData ออกจากตัวเฝ้าดูเพื่อลดการหน่วงของบอร์ด
 
   // 📈 3. ชุดข้อมูลสถิติสำหรับวาดกราฟเส้น Headcount Trend
   const monthlyTimelineData = useMemo(() => {
@@ -829,13 +851,22 @@ export default function CompleteManpowerWarRoom() {
               className={`border px-2 py-1.5 rounded-xl outline-none font-bold ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800"}`}
             >
               <option value="">เลือก Area เพื่อเพิ่ม Target</option>
-              {["K01", "K02", "K03", "K04", "K05", "K06", "K07", "K08"].map(
-                (v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ),
-              )}
+              {[
+                "K01",
+                "K02",
+                "K03",
+                "K04",
+                "K05",
+                "K06",
+                "K07",
+                "K08",
+                "K09",
+                "K10",
+              ].map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
             <button
               onClick={handleAddNewAreaBlock}
