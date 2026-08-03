@@ -50,6 +50,9 @@ export default function KPIDashboard() {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
+  // 🛡️ ป้องกัน Hydration Error (#418) ใน Next.js
+  const [isMounted, setIsMounted] = useState(false);
+
   // 🌐 Dynamic Filters Config
   const [filterYear, setFilterYear] = useState("All Year");
   const [filterMonth, setFilterMonth] = useState("All Month");
@@ -64,7 +67,7 @@ export default function KPIDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
-  // 🎯 บล็อกเป้าหมายพร้อมค่าเริ่มต้นสำรอง (Fallback) ป้องกันหน้าจอขาวตอนโหลดช้า
+  // 🎯 บล็อกเป้าหมายพร้อมค่าเริ่มต้นสำรอง (Fallback)
   const [areaTargets, setAreaTargets] = useState<any[]>([
     { id: "K01", name: "K01", approve: { KOE: 1, MER: 17, COM: 0, BA: 1 } },
     { id: "K02", name: "K02", approve: { KOE: 1, MER: 2, COM: 0, BA: 1 } },
@@ -77,6 +80,7 @@ export default function KPIDashboard() {
   ]);
 
   useEffect(() => {
+    setIsMounted(true);
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -90,19 +94,16 @@ export default function KPIDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. ดึงข้อมูลบันทึกสถิติรายวันพนักงานปกติ
       const { data: result, error } = await supabase
         .from("data_app")
-        .select("*"); //
+        .select("*");
       if (error) throw error;
       setRawData(result || []);
 
-      // 2. 🌐 ดึงข้อมูลเป้าหมายจากตาราง area_targets ของพี่ยอด
       const { data: targetRows, error: targetError } = await supabase
-        .from("area_targets") //
+        .from("area_targets")
         .select("area, role, target_approve");
 
-      // 🔥 พี่ยอดครับ! ผมเพิ่มบรรทัดนี้เพื่อพิมพ์ดูโครงสร้างข้อมูลจริงบนหน้าจอ Console ของพี่เลยครับ
       console.log(
         "🔍 ตรวจสอบยอด Target จาก Supabase:",
         targetRows,
@@ -155,7 +156,6 @@ export default function KPIDashboard() {
         };
 
         targetRows.forEach((row: any) => {
-          // ✨ เคลียร์ช่องว่างขยะ และปรับเป็นอักษรพิมพ์ใหญ่ทั้งหมดออโต้ ป้องกันบั๊กคำไม่ตรงล็อกครับพี่
           const areaKey = row.area
             ? row.area.toString().trim().toUpperCase()
             : "";
@@ -178,13 +178,28 @@ export default function KPIDashboard() {
     }
   };
 
-  const parseStampDate = (dateStr: string) => {
-    if (!dateStr) return null;
-    const parts = dateStr.split("-");
-    if (parts[0].length === 4) return new Date(dateStr);
-    if (parts[0].length === 2)
-      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-    return new Date(dateStr);
+  // ✅ ปรับปรุงฟังก์ชันแปลงวันที่อย่างปลอดภัย (Safe Date Parsing)
+  const parseStampDate = (dateStr: any): Date | null => {
+    if (!dateStr || typeof dateStr !== "string") return null;
+    const trimmed = dateStr.trim();
+    if (!trimmed) return null;
+
+    let parsedDate: Date;
+    const parts = trimmed.split("-");
+
+    if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+      // ฟอร์แมต DD-MM-YYYY -> YYYY-MM-DD
+      parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    } else {
+      parsedDate = new Date(trimmed);
+    }
+
+    // ตรวจสอบว่าวันที่ถูกต้องจริงหรือไม่ ป้องกัน Invalid Date
+    if (isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    return parsedDate;
   };
 
   const personPenaltyMap = useMemo(() => {
@@ -253,6 +268,7 @@ export default function KPIDashboard() {
     ],
     [rawData],
   );
+
   const availableMonths = useMemo(
     () => [
       "All Month",
@@ -262,6 +278,7 @@ export default function KPIDashboard() {
     ],
     [rawData],
   );
+
   const availableAreas = useMemo(
     () => [
       "All Area",
@@ -269,6 +286,7 @@ export default function KPIDashboard() {
     ],
     [rawData],
   );
+
   const availableAreaCodes = useMemo(
     () => [
       "All Area Code",
@@ -288,6 +306,7 @@ export default function KPIDashboard() {
     setCurrentPage(1);
   };
 
+  // ✅ แก้ไขส่วน Filter วันที่ ไม่ให้เรียก .toISOString() กับค่าที่เป็น null/invalid
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
       if (filterYear !== "All Year" && item.year_num?.toString() !== filterYear)
@@ -484,9 +503,11 @@ export default function KPIDashboard() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="bg-[#0D0D10] border border-white/10 px-4 py-1.5 rounded-xl font-mono text-xs flex items-center gap-2 text-slate-300">
               <Clock size={13} className="text-blue-400 animate-pulse" />
-              <span>{currentTime.toLocaleDateString("th-TH")}</span>
+              <span>
+                {isMounted ? currentTime.toLocaleDateString("th-TH") : "..."}
+              </span>
               <span className="text-blue-400 font-bold">
-                {currentTime.toLocaleTimeString("th-TH")}
+                {isMounted ? currentTime.toLocaleTimeString("th-TH") : "..."}
               </span>
             </div>
 
@@ -499,7 +520,7 @@ export default function KPIDashboard() {
 
             <button
               onClick={fetchData}
-              className="flex items-center gap-2 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold hover:bg-white/5 text-slate-300"
+              className="flex items-center gap-2 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold hover:bg-white/5 text-slate-300 cursor-pointer"
             >
               <RefreshCw
                 size={13}
@@ -603,7 +624,7 @@ export default function KPIDashboard() {
             </div>
             <button
               onClick={handleClearAllFilters}
-              className="border border-white/10 px-4 py-2 rounded-xl bg-[#17171E] text-slate-300 self-end h-9 mt-1"
+              className="border border-white/10 px-4 py-2 rounded-xl bg-[#17171E] text-slate-300 self-end h-9 mt-1 hover:bg-white/5 transition-colors cursor-pointer"
             >
               Clear Filters
             </button>
@@ -797,7 +818,7 @@ export default function KPIDashboard() {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                 disabled={currentPage === 1}
-                className="px-2 py-1 rounded-lg border border-white/10 text-white hover:bg-white/5"
+                className="px-2 py-1 rounded-lg border border-white/10 text-white hover:bg-white/5 disabled:opacity-40 cursor-pointer"
               >
                 ‹
               </button>
@@ -808,8 +829,10 @@ export default function KPIDashboard() {
                 onClick={() =>
                   setCurrentPage((p) => Math.min(p + 1, totalPagesCount))
                 }
-                disabled={currentPage === totalPagesCount}
-                className="px-2 py-1 rounded-lg border border-white/10 text-white hover:bg-white/5"
+                disabled={
+                  currentPage === totalPagesCount || totalPagesCount === 0
+                }
+                className="px-2 py-1 rounded-lg border border-white/10 text-white hover:bg-white/5 disabled:opacity-40 cursor-pointer"
               >
                 ›
               </button>
@@ -833,7 +856,8 @@ export default function KPIDashboard() {
           <div className="text-right text-[11px] font-bold font-mono">
             <div>วันที่ประเมินหลักฐาน: 2026-06-20</div>
             <div>
-              วันที่พิมพ์รายงาน: {currentTime.toLocaleDateString("th-TH")}
+              วันที่พิมพ์รายงาน:{" "}
+              {isMounted ? currentTime.toLocaleDateString("th-TH") : ""}
             </div>
           </div>
         </div>
