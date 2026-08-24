@@ -4,21 +4,13 @@ import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   RefreshCw,
-  Users,
-  UserCheck,
-  UserPlus,
-  Filter,
-  Search,
   Award,
-  TrendingUp,
-  Percent,
   AlertTriangle,
   Clock,
-  ShieldAlert,
   Printer,
   FileText,
+  Search,
 } from "lucide-react";
-import Swal from "sweetalert2";
 
 const STATUS_BADGES: any = {
   ปกติ: "bg-emerald-950/40 text-emerald-400 border border-emerald-500/20",
@@ -43,17 +35,35 @@ const MONTH_NAMES: any = {
   "12": "December",
 };
 
-const EVALUATION_DATE = new Date("2026-06-20");
+// Utility Function
+const parseStampDate = (dateStr: any): Date | null => {
+  if (!dateStr || typeof dateStr !== "string") return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  let parsedDate: Date;
+  const parts = trimmed.split("-");
+
+  if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+    parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+  } else {
+    parsedDate = new Date(trimmed);
+  }
+
+  if (isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate;
+};
 
 export default function KPIDashboard() {
   const [rawData, setRawData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
-
-  // 🛡️ ป้องกัน Hydration Error (#418) ใน Next.js
   const [isMounted, setIsMounted] = useState(false);
 
-  // 🌐 Dynamic Filters Config
+  // Dynamic Filters Config
   const [filterYear, setFilterYear] = useState("All Year");
   const [filterMonth, setFilterMonth] = useState("All Month");
   const [filterArea, setFilterArea] = useState("All Area");
@@ -67,16 +77,22 @@ export default function KPIDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
-  // 🎯 บล็อกเป้าหมายพร้อมค่าเริ่มต้นสำรอง (Fallback)
+  const evaluationDate = useMemo(
+    () => parseStampDate(dateTo) || new Date(),
+    [dateTo],
+  );
+
   const [areaTargets, setAreaTargets] = useState<any[]>([
-    { id: "K01", name: "K01", approve: { KOE: 1, MER: 17, COM: 0, BA: 1 } },
-    { id: "K02", name: "K02", approve: { KOE: 1, MER: 2, COM: 0, BA: 1 } },
-    { id: "K03", name: "K03", approve: { KOE: 1, MER: 8, COM: 1, BA: 2 } },
-    { id: "K04", name: "K04", approve: { KOE: 1, MER: 10, COM: 0, BA: 1 } },
-    { id: "K05", name: "K05", approve: { KOE: 1, MER: 7, COM: 1, BA: 1 } },
-    { id: "K06", name: "K06", approve: { KOE: 1, MER: 12, COM: 1, BA: 2 } },
-    { id: "K07", name: "K07", approve: { KOE: 1, MER: 9, COM: 1, BA: 1 } },
-    { id: "K08", name: "K08", approve: { KOE: 1, MER: 10, COM: 0, BA: 1 } },
+    { id: "K01", name: "K01", approve: { KOE: 1, MER: 11, COM: 0, BA: 1 } },
+    { id: "K02", name: "K02", approve: { KOE: 1, MER: 9, COM: 0, BA: 0 } },
+    { id: "K03", name: "K03", approve: { KOE: 1, MER: 5, COM: 0, BA: 1 } },
+    { id: "K04", name: "K04", approve: { KOE: 1, MER: 5, COM: 0, BA: 1 } },
+    { id: "K05", name: "K05", approve: { KOE: 1, MER: 8, COM: 0, BA: 1 } },
+    { id: "K06", name: "K06", approve: { KOE: 1, MER: 5, COM: 0, BA: 0 } },
+    { id: "K07", name: "K07", approve: { KOE: 1, MER: 7, COM: 0, BA: 0 } },
+    { id: "K08", name: "K08", approve: { KOE: 1, MER: 10, COM: 0, BA: 0 } },
+    { id: "K09", name: "K09", approve: { KOE: 1, MER: 13, COM: 2, BA: 1 } },
+    { id: "K10", name: "K10", approve: { KOE: 1, MER: 13, COM: 2, BA: 2 } },
   ]);
 
   useEffect(() => {
@@ -103,13 +119,6 @@ export default function KPIDashboard() {
       const { data: targetRows, error: targetError } = await supabase
         .from("area_targets")
         .select("area, role, target_approve");
-
-      console.log(
-        "🔍 ตรวจสอบยอด Target จาก Supabase:",
-        targetRows,
-        "หากติดขัดเออร์เรอร์:",
-        targetError,
-      );
 
       if (!targetError && targetRows && targetRows.length > 0) {
         const baseMap: Record<string, any> = {
@@ -153,6 +162,16 @@ export default function KPIDashboard() {
             name: "K08",
             approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
           },
+          K09: {
+            id: "K09",
+            name: "K09",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
+          K10: {
+            id: "K10",
+            name: "K10",
+            approve: { KOE: 0, MER: 0, COM: 0, BA: 0 },
+          },
         };
 
         targetRows.forEach((row: any) => {
@@ -176,30 +195,6 @@ export default function KPIDashboard() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // ✅ ปรับปรุงฟังก์ชันแปลงวันที่อย่างปลอดภัย (Safe Date Parsing)
-  const parseStampDate = (dateStr: any): Date | null => {
-    if (!dateStr || typeof dateStr !== "string") return null;
-    const trimmed = dateStr.trim();
-    if (!trimmed) return null;
-
-    let parsedDate: Date;
-    const parts = trimmed.split("-");
-
-    if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
-      // ฟอร์แมต DD-MM-YYYY -> YYYY-MM-DD
-      parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-    } else {
-      parsedDate = new Date(trimmed);
-    }
-
-    // ตรวจสอบว่าวันที่ถูกต้องจริงหรือไม่ ป้องกัน Invalid Date
-    if (isNaN(parsedDate.getTime())) {
-      return null;
-    }
-
-    return parsedDate;
   };
 
   const personPenaltyMap = useMemo(() => {
@@ -247,7 +242,7 @@ export default function KPIDashboard() {
       });
 
       if (inPenaltyCycle && cycleStartDate) {
-        const diffTime = EVALUATION_DATE.getTime() - cycleStartDate.getTime();
+        const diffTime = evaluationDate.getTime() - cycleStartDate.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays > 15) {
           totalPenalty += Math.min(diffDays - 15, 30);
@@ -257,7 +252,7 @@ export default function KPIDashboard() {
     });
 
     return map;
-  }, [rawData]);
+  }, [rawData, evaluationDate]);
 
   const availableYears = useMemo(
     () => [
@@ -306,7 +301,6 @@ export default function KPIDashboard() {
     setCurrentPage(1);
   };
 
-  // ✅ แก้ไขส่วน Filter วันที่ ไม่ให้เรียก .toISOString() กับค่าที่เป็น null/invalid
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
       if (filterYear !== "All Year" && item.year_num?.toString() !== filterYear)
@@ -736,7 +730,7 @@ export default function KPIDashboard() {
           </div>
         </div>
 
-        {/* ทำเนียบพนักงานระดับล่าง */}
+        {/* ทำเนียบพนักงาน */}
         <div className="bg-[#0D0D10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
           <div className="p-4 bg-[#121217] border-b border-white/5 flex items-center justify-between">
             <div className="relative w-full sm:w-72">
@@ -842,167 +836,128 @@ export default function KPIDashboard() {
       </div>
 
       {/* PRINT VIEW TEMPLATE */}
-      <div className="hidden print:block text-black bg-white p-6">
-        <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
+      <div className="hidden print:block text-black bg-white p-0 break-inside-avoid">
+        <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-3">
           <div>
-            <h2 className="text-lg font-black tracking-tight uppercase flex items-center gap-1.5">
-              <FileText size={18} /> รายงานผลการประเมินกำลังพลและคะแนน KPI
+            <h2 className="text-base font-black tracking-tight flex items-center gap-1.5">
+              <FileText size={16} /> รายงานผลการประเมินกำลังพลและคะแนน KPI
               รายพื้นที่
             </h2>
-            <p className="text-xs font-bold text-slate-700">
+            <p className="text-[11px] text-gray-600">
               (Manpower Performance Summary & Expenses Verification Report)
             </p>
           </div>
-          <div className="text-right text-[11px] font-bold font-mono">
-            <div>วันที่ประเมินหลักฐาน: 2026-06-20</div>
-            <div>
-              วันที่พิมพ์รายงาน:{" "}
-              {isMounted ? currentTime.toLocaleDateString("th-TH") : ""}
-            </div>
+          <div className="text-right text-[11px] space-y-0.5">
+            <p>
+              <span className="font-bold">วันที่ประเมินหลักฐาน:</span> {dateTo}
+            </p>
+            <p>
+              <span className="font-bold">วันที่พิมพ์รายงาน:</span>{" "}
+              {isMounted ? currentTime.toLocaleDateString("th-TH") : "-"}
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 bg-slate-100 p-3 rounded-lg text-xs font-bold mb-6 border border-slate-300">
-          <div>
-            ขอบเขตเขตพื้นที่:{" "}
-            <span className="underline">
-              {filterArea === "All Area"
-                ? "ทุกเขตพื้นที่"
-                : `${filterArea} Area`}
-            </span>
-          </div>
-          <div>
-            ประจำเดือน/ปี:{" "}
-            <span className="underline">
-              {filterMonth === "All Month" ? "สะสม" : MONTH_NAMES[filterMonth]}{" "}
-              / {filterYear}
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-2 mb-6">
-          <h3 className="text-xs font-black uppercase border-l-4 border-black pl-2">
-            1. สรุปสถิติตัวเลขและตัวคูณคำนวณเงินสะสม
-          </h3>
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div className="border border-slate-300 p-2.5 rounded-md">
-              <div className="text-[10px] text-slate-600">
-                Target Approve (MER,COM,BA)
-              </div>
-              <div className="text-base font-black font-mono">
-                {summaryMetrics.targetTotal} ราย
-              </div>
-            </div>
-            <div className="border border-slate-300 p-2.5 rounded-md bg-emerald-50">
-              <div className="text-[10px] text-slate-600">
-                {'Actual Active "ปกติ" (หัวคนจริง)'}
-              </div>
-              <div className="text-base font-black font-mono text-emerald-700">
-                {summaryMetrics.activeOps} คน
-              </div>
-            </div>
-            <div className="border border-slate-300 p-2.5 rounded-md">
-              <div className="text-[10px] text-slate-600">
-                Base KPI Score (%)
-              </div>
-              <div className="text-base font-black font-mono">
-                {summaryMetrics.baseKpi}%
-              </div>
-            </div>
-            <div className="border border-rose-300 p-2.5 rounded-md bg-rose-50">
-              <div className="text-[10px] text-rose-800">
-                Avg Scale Penalty หักลด
-              </div>
-              <div className="text-base font-black font-mono text-rose-700">
-                -{summaryMetrics.avgPenalty}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-2 mb-6">
-          <h3 className="text-xs font-black uppercase border-l-4 border-black pl-2">
-            2. รายงานแจกแจงเกรดและคะแนนหักช้าสะสม รายพื้นที่
-          </h3>
-          <table className="w-full text-left border-collapse border border-slate-400 text-[11px] font-bold">
-            <thead>
-              <tr className="bg-slate-200 border-b border-slate-400">
-                <th className="p-2 border-r border-slate-400">Area Name</th>
-                <th className="p-2 border-r border-slate-400 text-center">
-                  Approved Target
-                </th>
-                <th className="p-2 border-r border-slate-400 text-center">
-                  Actual Active (คน)
-                </th>
-                <th className="p-2 border-r border-slate-400 text-center">
-                  Base Score
-                </th>
-                <th className="p-2 border-r border-slate-400 text-center text-rose-700">
-                  Avg Scale Penalty
-                </th>
-                <th className="p-2 border-r border-slate-400 text-center text-blue-800">
-                  Final Score
-                </th>
-                <th className="p-2 text-center">Grade Result</th>
+        {/* ตารางข้อมูลสำหรับหน้าพิมพ์ */}
+        <table className="w-full text-left border-collapse text-[11px] border border-gray-300">
+          <thead>
+            <tr className="bg-gray-100 border-b-2 border-black text-black">
+              <th className="px-3 py-1 border-r border-gray-300">Area</th>
+              <th className="px-3 py-1 text-center border-r border-gray-300">
+                Approved Target
+              </th>
+              <th className="px-3 py-1 text-center border-r border-gray-300">
+                Actual Active
+              </th>
+              <th className="px-3 py-1 text-center border-r border-gray-300">
+                Base Score
+              </th>
+              <th className="px-3 py-1 text-center border-r border-gray-300">
+                Avg Scale Penalty
+              </th>
+              <th className="px-3 py-1 text-center border-r border-gray-300">
+                Adjusted Score
+              </th>
+              <th className="px-3 py-1 text-center">Grade Eval</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-300">
+            {areaKPIScorecards.map((area, idx) => (
+              <tr key={idx} className="text-black">
+                <td className="px-3 py-1 font-bold border-r border-gray-300">
+                  {area.name} Area
+                </td>
+                <td className="px-3 py-1 text-center border-r border-gray-300">
+                  {area.targetApproveCount} ราย
+                </td>
+                <td className="px-3 py-1 text-center border-r border-gray-300">
+                  {area.areaOpsActive} คน
+                </td>
+                <td className="px-3 py-1 text-center border-r border-gray-300">
+                  {area.baseScore}%
+                </td>
+                <td className="px-3 py-1 text-center border-r border-gray-300">
+                  -{area.areaAvgPenalty}
+                </td>
+                <td className="px-3 py-1 text-center font-bold border-r border-gray-300">
+                  {area.adjustedScore}%
+                </td>
+                <td className="px-3 py-1 text-center font-bold">
+                  Grade {area.grade}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {areaKPIScorecards.map((area, idx) => (
-                <tr key={idx} className="border-b border-slate-300">
-                  <td className="p-2 border-r border-slate-400 font-black">
-                    {area.name} Area Summary
-                  </td>
-                  <td className="p-2 border-r border-slate-400 text-center font-mono">
-                    {area.targetApproveCount} ราย
-                  </td>
-                  <td className="p-2 border-r border-slate-400 text-center font-mono text-emerald-700">
-                    {area.areaOpsActive} คน
-                  </td>
-                  <td className="p-2 border-r border-slate-400 text-center font-mono">
-                    {area.baseScore}%
-                  </td>
-                  <td className="p-2 border-r border-slate-400 text-center font-mono text-rose-700">
-                    -{area.areaAvgPenalty}
-                  </td>
-                  <td className="p-2 border-r border-slate-400 text-center font-mono text-blue-800">
-                    {area.adjustedScore}%
-                  </td>
-                  <td className="p-2 text-center font-black font-mono">
-                    Grade {area.grade}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
 
-        <div className="mt-12 pt-8 border-t border-slate-300">
-          <div className="grid grid-cols-3 gap-6 text-center text-xs font-bold">
-            <div className="space-y-8">
-              <div>
-                ลงชื่อ..........................................................
-              </div>
-              <div>ผู้จัดทำรายงาน (ฝ่ายปฏิบัติการ Area Ops)</div>
+        {/* สรุปข้อมูลรวม */}
+        <div className="mt-3 flex justify-end">
+          <div className="w-56 border border-black p-2.5 text-[11px]">
+            <div className="flex justify-between mb-1">
+              <span className="font-bold">Total Base Target:</span>
+              <span>{summaryMetrics.targetTotal}</span>
             </div>
-            <div className="space-y-8">
-              <div>
-                ลงชื่อ..........................................................
-              </div>
-              <div>ผู้ตรวจสอบข้อมูล (ฝ่ายบุคคล HR Manager)</div>
+            <div className="flex justify-between mb-1">
+              <span className="font-bold">Total Active:</span>
+              <span>{summaryMetrics.activeOps}</span>
             </div>
-            <div className="space-y-8">
-              <div>
-                ลงชื่อ..........................................................
-              </div>
-              <div>ผู้อนุมัติทำจ่ายค่าใช้จ่าย (Authorized Director)</div>
+            <div className="flex justify-between border-t border-dashed border-gray-400 pt-1 font-bold text-xs">
+              <span>Overall KPI:</span>
+              <span>{summaryMetrics.finalKpi}%</span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* FOOTER */}
-      <div className="print:hidden border-t border-white/5 pt-6 mt-8 text-center text-[11px] font-bold text-slate-600 tracking-wider">
-        WAR ROOM STRATEGIC REPORTING SYSTEM • VERSION 2.4.0 (PROD)
+        {/* ส่วนลายเซ็นอนุมัติ (Signature Section) */}
+        <div className="mt-4 grid grid-cols-3 gap-6 text-center text-[11px] break-inside-avoid">
+          <div className="space-y-1">
+            <p className="font-bold">ผู้จัดทำ (Prepared By)</p>
+            <div className="h-8"></div>
+            <p>....................................................</p>
+            <p className="text-gray-600">(________________________)</p>
+            <p className="text-[10px] text-gray-500">
+              วันที่ ......./......./.......
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="font-bold">ผู้ตรวจสอบ (Checked By)</p>
+            <div className="h-8"></div>
+            <p>....................................................</p>
+            <p className="text-gray-600">(________________________)</p>
+            <p className="text-[10px] text-gray-500">
+              วันที่ ......./......./.......
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="font-bold">ผู้อนุมัติ (Approved By)</p>
+            <div className="h-8"></div>
+            <p>....................................................</p>
+            <p className="text-gray-600">(________________________)</p>
+            <p className="text-[10px] text-gray-500">
+              วันที่ ......./......./.......
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
