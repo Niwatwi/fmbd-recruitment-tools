@@ -656,6 +656,47 @@ export default function CompleteManpowerWarRoom() {
   );
   const totalPagesCount = Math.ceil(sortedTableRows.length / rowsPerPage);
 
+  const handleExportExcel = () => {
+    // 1. กำหนดหัวตาราง (Header)
+    const headers = [
+      "DATE STAMP",
+      "EMPLOYEE ID",
+      "FULLNAME",
+      "AREA",
+      "AREA CODE",
+      "ROLE",
+      "VERSION",
+      "STATUS APP",
+    ];
+
+    // 2. แปลงข้อมูลจากรายการที่กรองไว้ (searchedRows หรือ filteredData)
+    const rows = searchedRows.map((item) => [
+      `"${item.date_stamp || ""}"`,
+      `"${item.employee_id || ""}"`,
+      `"${item.fullname || ""}"`,
+      `"${item.area || ""}"`,
+      `"${item.area_code || ""}"`,
+      `"${item.role || ""}"`,
+      `"${item.version || ""}"`,
+      `"${item.status_app || ""}"`,
+    ]);
+
+    // 3. รวม Header และ Body พร้อมใส่ \uFEFF (BOM) ป้องกันภาษาไทยต่างดาวใน Excel
+    const csvContent =
+      "\uFEFF" +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+
+    // 4. สร้าง Link สำหรับดาวน์โหลดไฟล์
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Manpower_Report_${dateTo}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div
       className={`min-h-screen font-sans p-4 md:p-6 space-y-6 select-none transition-colors duration-300 ${isDarkMode ? "bg-[#060A13] text-slate-100" : "bg-[#f8fafc] text-slate-800"}`}
@@ -1358,9 +1399,10 @@ export default function CompleteManpowerWarRoom() {
             />
           </div>
           <button
-            className={`flex items-center gap-1.5 border font-bold text-xs px-4 py-2 rounded-xl text-slate-300 transition-all cursor-pointer ${isDarkMode ? "bg-[#1C2541] border-slate-700" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
           >
-            <Download size={13} /> Export
+            <Download size={14} /> Export
           </button>
         </div>
 
