@@ -1,0 +1,10 @@
+{
+    "cSpell.words": [
+        "supabase",
+        "Swal",
+        "sweetalert"
+    ],
+    "cSpell.ignoreRegExpList": [
+        "[\u0E00-\u0E7F]+" // ข้ามการตรวจคำภาษาไทยทั้งหมด
+    ]
+}

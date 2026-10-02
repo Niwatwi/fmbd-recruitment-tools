@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { supabase } from "../lib/supabase";
 import {
   Upload,
@@ -18,119 +19,148 @@ export function CSVImporter() {
     message: string;
   }>({ type: null, message: "" });
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     setStatus({ type: null, message: "" });
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const csvRows = results.data as any[];
-
-        // 🛠️ จับคู่คอลลัมน์และลบ id ออก ปล่อยให้ Database สร้างให้อัตโนมัติ
-        const formattedData = csvRows
-          .map((row) => {
-            const rawDate = row["Date Stamp"] || row["date_stamp"] || "";
-            // แปลงฟอร์แมตวันที่ในคอลลัมน์จากเครื่องหมาย / ให้เป็น - (เช่น 01/05/2026 -> 01-05-2026)
-            const formattedDate = rawDate.replace(/\//g, "-").trim();
-            const empId = (row["Employee ID"] || row["employee_id"] || "")
-              .toString()
-              .trim();
-
-            // ⚡ ลอจิกพิเศษ: ตรวจสอบและสร้างค่า Con ให้เป็นรูปแบบเดียวกันทั้งหมดป้องกันการระเบิดซ้ำ
-            const originalCon = row["Con"] || row["con"];
-            const finalCon =
-              originalCon && originalCon.trim() !== ""
-                ? originalCon.replace(/\//g, "-").trim() // ตบฟอร์แมต / เป็น -
-                : `${formattedDate}|${empId}`;
-
-            return {
-              // ❌ ไม่ส่ง id ไปเด็ดขาด เพื่อให้สอดคล้องกับโครงสร้างฐานข้อมูลแบบ Auto-increment
-              date_stamp: formattedDate || null,
-              day_num: parseInt(row["Date"] || row["day_num"]) || null,
-              month_num: parseInt(row["Month"] || row["month_num"]) || null,
-              year_num: parseInt(row["Year"] || row["year_num"]) || null,
-              employee_type:
-                row["Employee Type"] || row["employee_type"] || null,
-              area: row["Area"] || row["area"] || null,
-              area_code: row["Area Code"] || row["area_code"] || null,
-              role: row["Role"] || row["role"] || null,
-              employee_id: empId || null,
-              fullname: row["Full Name"] || row["fullname"] || null,
-              email: row["Email"] || row["email"] || null,
-              version: row["Version"] || row["version"] || null,
-              status_app: row["สถานะ"] || row["status_app"] || null,
-              con: finalCon, // ใช้คีย์ con นี้ทำหน้าที่ตรวจสอบสิทธิ์ขัดแย้ง Upsert
-              status_report: row["Status"] || row["status_report"] || null,
-              remark: row["Remark"] || row["remark"] || null,
-            };
-          })
-          // กรองเอาเฉพาะแถวที่มีตัวตนพนักงานและมีคีย์ con สมบูรณ์
-          .filter((item) => item.employee_id && item.con);
-
-        if (formattedData.length === 0) {
-          setStatus({
-            type: "error",
-            message:
-              "พี่ยอดครับ ไม่พบข้อมูลพนักงานที่ถูกต้องในไฟล์ CSV กรุณาตรวจสอบรหัสพนักงานหรือฟิลด์วันที่ครับ",
+    try {
+      let csvRows: Record<string, any>[];
+      if (/\.xlsx?$/i.test(file.name)) {
+        const workbook = XLSX.read(await file.arrayBuffer(), {
+          cellDates: true,
+        });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        csvRows = firstSheet
+          ? XLSX.utils.sheet_to_json(firstSheet, { defval: "", raw: false })
+          : [];
+      } else {
+        const results = await new Promise<
+          Papa.ParseResult<Record<string, any>>
+        >((resolve, reject) => {
+          Papa.parse<Record<string, any>>(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: resolve,
+            error: reject,
           });
-          setIsUploading(false);
-          return;
-        }
+        });
+        csvRows = results.data;
+      }
 
-        try {
-          // 🚀 ส่งคำสั่ง Upsert เข้าคลังข้อมูล fmbd_controller.data_app หลัก
-          const { error } = await supabase
-            .from("data_app")
-            .upsert(formattedData, { onConflict: "con" });
+      const formattedData = csvRows
+        .map((row) => {
+          const rawDate =
+            row["Date Stamp"] ||
+            row["date_stamp"] ||
+            row["Update"] ||
+            row["update"] ||
+            "";
+          const formattedDate = String(rawDate).replace(/\//g, "-").trim();
+          const empId = String(
+            row["Employee ID"] || row["employee_id"] || "",
+          ).trim();
+          const originalCon = row["Con"] || row["con"];
+          const finalCon = originalCon
+            ? String(originalCon).replace(/\//g, "-").trim()
+            : `${formattedDate}|${empId}`;
+          const employeeRole = row["Role"] || row["role"] || "";
 
-          if (error) throw error;
+          return {
+            date_stamp: formattedDate || null,
+            day_num: parseInt(row["Date"] || row["day_num"]) || null,
+            month_num: parseInt(row["Month"] || row["month_num"]) || null,
+            year_num: parseInt(row["Year"] || row["year_num"]) || null,
+            employee_type:
+              row["Employee Type"] ||
+              row["employee_type"] ||
+              employeeRole ||
+              null,
+            area: row["Area"] || row["area"] || null,
+            area_code: row["Area Code"] || row["area_code"] || null,
+            role: employeeRole || null,
+            employee_id: empId || null,
+            fullname:
+              row["Full Name"] ||
+              row["Fullname"] ||
+              row["Fullname "] ||
+              row["fullname"] ||
+              null,
+            email: row["Email"] || row["email"] || null,
+            version: row["Version"] || row["version"] || null,
+            status_app: row["สถานะ"] || row["status_app"] || null,
+            con: finalCon,
+            status_report: row["Status"] || row["status_report"] || null,
+            remark: row["Remark"] || row["remark"] || null,
+          };
+        })
+        .filter((item) => item.employee_id && item.con);
 
-          setStatus({
-            type: "success",
-            message: `อัปเดตฐานข้อมูลสำเร็จ! ซิงค์ข้อมูลกำลังพลเข้าคลังอัตโนมัติจำนวน ${formattedData.length} รายการ เรียบร้อยแล้วครับพี่`,
-          });
-        } catch (err: any) {
-          console.error(err);
-          setStatus({
-            type: "error",
-            message:
-              err.message ||
-              "เกิดข้อผิดพลาดในการเชื่อมต่อหรือส่งข้อมูลไปยัง Supabase",
-          });
-        } finally {
-          setIsUploading(false);
-          if (event.target) event.target.value = ""; // ล้างค่าหน้าอินพุตไฟล์
-        }
-      },
-    });
+      const uniqueRowsByCon = new Map<string, (typeof formattedData)[number]>();
+      formattedData.forEach((item) => {
+        uniqueRowsByCon.set(String(item.con), item);
+      });
+      const rowsToUpsert = Array.from(uniqueRowsByCon.values());
+      const duplicateCount = formattedData.length - rowsToUpsert.length;
+
+      if (rowsToUpsert.length === 0) {
+        setStatus({
+          type: "error",
+          message: "ไม่พบข้อมูลพนักงาน กรุณาตรวจสอบคอลัมน์ Employee ID ในไฟล์",
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from("data_app")
+        .upsert(rowsToUpsert, { onConflict: "con" });
+
+      if (error) throw error;
+
+      setStatus({
+        type: "success",
+        message: `นำเข้าข้อมูลสำเร็จ ${rowsToUpsert.length} รายการ${
+          duplicateCount > 0
+            ? ` (ข้ามแถวที่มีคีย์ซ้ำ ${duplicateCount} แถว)`
+            : ""
+        }`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      setStatus({
+        type: "error",
+        message: err.message || "เกิดข้อผิดพลาดในการอ่านไฟล์หรือบันทึกข้อมูล",
+      });
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
+    }
   };
 
   return (
-    <div className="p-6 border border-slate-800 bg-[#121826] rounded-2xl shadow-xl">
+    <div className="border border-[#1E293B] bg-[#111726] rounded-xl p-5 sm:p-6">
       <div className="flex items-center gap-3 mb-4">
         <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
           <FileSpreadsheet className="h-6 w-6" />
         </div>
         <div>
           <h3 className="text-lg font-medium text-white">
-            อัปเดตข้อมูลด้วยไฟล์ CSV (ระบบสร้าง ID อัตโนมัติ)
+            นำเข้าข้อมูลจากไฟล์ Excel หรือ CSV
           </h3>
           <p className="text-xs text-slate-400">
-            อัปโหลดไฟล์สรุป Daily Report ลงฐานข้อมูลกลางสคีมา
-            fmbd_controller.data_app บันทึกต่อท้ายแบบปลอดภัย
+            รองรับ Template ข้อมูลพนักงานและไฟล์สรุป Daily Report
           </p>
         </div>
       </div>
 
-      <div className="border-2 border-dashed border-slate-700/60 hover:border-blue-500/50 rounded-xl p-6 text-center hover:bg-slate-800/20 transition-all relative group cursor-pointer">
+      <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 rounded-lg p-8 sm:p-10 text-center hover:bg-emerald-500/3 transition-colors relative group cursor-pointer">
         <input
           type="file"
-          accept=".csv"
+          accept=".csv,.xlsx,.xls"
           onChange={handleFileUpload}
           disabled={isUploading}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-20"
@@ -138,20 +168,19 @@ export function CSVImporter() {
         <div className="flex flex-col items-center justify-center gap-2">
           {isUploading ? (
             <>
-              <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+              <Loader2 className="h-8 w-8 text-emerald-400 animate-spin" />
               <p className="text-sm font-medium text-slate-300">
-                ระบบกำลังประมวลผลและยิงคำสั่ง Upsert ลงฐานข้อมูล...
+                กำลังตรวจสอบและนำเข้าข้อมูล...
               </p>
             </>
           ) : (
             <>
-              <Upload className="h-8 w-8 text-slate-500 group-hover:text-blue-400 transition-colors" />
+              <Upload className="h-8 w-8 text-slate-500 group-hover:text-emerald-400 transition-colors" />
               <p className="text-sm font-medium text-slate-300">
-                คลิกหรือลากไฟล์ CSV มาวางที่นี่
+                คลิกเพื่อเลือกไฟล์ Excel หรือ CSV
               </p>
               <p className="text-xs text-slate-500">
-                ระบบเปิดใช้ Identity Column
-                รันลำดับออโต้หลังบ้านเรียบร้อยแล้วครับพี่
+                รองรับไฟล์ .xlsx, .xls และ .csv
               </p>
             </>
           )}

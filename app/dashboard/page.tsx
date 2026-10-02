@@ -20,10 +20,6 @@ import {
   Moon,
   Trophy,
   ArrowUpDown,
-  Building2,
-  Mail,
-  ShieldCheck,
-  FileText,
   Save,
 } from "lucide-react";
 import {
@@ -78,6 +74,7 @@ export default function CompleteManpowerWarRoom() {
   const [isSavingTarget, setIsSavingTarget] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isTargetBoardOpen, setIsTargetBoardOpen] = useState(false);
 
   // 🌐 กลุ่มควบคุมฟิลเตอร์หลักด้านบนสุด
   const [filterYear, setFilterYear] = useState("All Year");
@@ -699,11 +696,11 @@ export default function CompleteManpowerWarRoom() {
 
   return (
     <div
-      className={`min-h-screen font-sans p-4 md:p-6 space-y-6 select-none transition-colors duration-300 ${isDarkMode ? "bg-[#060A13] text-slate-100" : "bg-[#f8fafc] text-slate-800"}`}
+      className={`min-h-screen flex flex-col gap-6 font-sans p-4 md:p-6 select-none transition-colors duration-300 ${isDarkMode ? "bg-[#060A13] text-slate-100" : "bg-[#f8fafc] text-slate-800"}`}
     >
       {/* Header Bar */}
       <div
-        className={`border rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xl transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+        className={`order-1 border rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xl transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
       >
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-blue-600/10 text-blue-400 rounded-xl border border-blue-500/20">
@@ -713,15 +710,15 @@ export default function CompleteManpowerWarRoom() {
             <h1
               className={`text-xl font-black uppercase ${isDarkMode ? "text-white" : "text-slate-900"}`}
             >
-              Manpower Analytics
+              Workforce overview
             </h1>
             <p className="text-[11px] text-slate-400 font-bold uppercase mt-0.5">
-              War room strategic board
+              Recruitment planning & performance
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-          <span className="text-slate-400 mr-2 flex items-center gap-1">
+          <span className="hidden items-center gap-1 text-slate-400 sm:flex">
             <Calendar size={13} />{" "}
             {mounted
               ? new Date().toLocaleDateString("en-US", {
@@ -733,25 +730,42 @@ export default function CompleteManpowerWarRoom() {
               : "Loading..."}
           </span>
           <button
+            type="button"
             onClick={fetchWarRoomDatabase}
+            aria-label="Refresh workforce data"
+            title="Refresh workforce data"
             className={`p-2 rounded-xl border transition-all ${isDarkMode ? "bg-[#1C2541] border-slate-700/60 hover:bg-slate-700 text-slate-200" : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-700"}`}
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
           <button
+            type="button"
             onClick={() => router.push("/kpi")}
+            aria-label="Performance and KPI"
+            title="Performance and KPI"
             className={`flex items-center gap-1 border px-3 py-2 rounded-xl transition-all ${isDarkMode ? "bg-[#1C2541] border-slate-700/60 hover:bg-slate-700 text-slate-200" : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-700"}`}
           >
-            <Trophy size={14} className="text-yellow-400" /> KPI Scoring
+            <Trophy size={14} className="text-yellow-400" />
+            <span className="hidden sm:inline">KPI Scoring</span>
           </button>
           <button
+            type="button"
             onClick={() => setIsDarkMode(!isDarkMode)}
+            aria-label={
+              isDarkMode ? "Switch to light theme" : "Switch to dark theme"
+            }
+            title={
+              isDarkMode ? "Switch to light theme" : "Switch to dark theme"
+            }
             className={`p-2 rounded-xl border transition-all ${isDarkMode ? "bg-[#1C2541] border-slate-700/60 hover:bg-slate-700 text-yellow-400" : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-indigo-600"}`}
           >
             {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
           </button>
           <button
+            type="button"
             onClick={handleLogoutSystem}
+            aria-label="Sign out"
+            title="Sign out"
             className="p-2 bg-red-600/10 hover:bg-red-600/20 text-red-400 rounded-xl border border-red-500/20 cursor-pointer"
           >
             <LogOut size={14} />
@@ -761,7 +775,7 @@ export default function CompleteManpowerWarRoom() {
 
       {/* Dynamic Filter Panel */}
       <div
-        className={`border rounded-2xl p-5 shadow-xl space-y-4 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+        className={`order-2 border rounded-2xl p-5 shadow-xl space-y-4 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
       >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-bold">
           <div>
@@ -877,7 +891,7 @@ export default function CompleteManpowerWarRoom() {
 
       {/* Target Summary Section */}
       <div
-        className={`border rounded-2xl p-5 shadow-2xl space-y-5 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+        className={`order-4 border rounded-2xl p-5 shadow-2xl space-y-5 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
       >
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-3 border-slate-800/40">
           <h3
@@ -886,275 +900,297 @@ export default function CompleteManpowerWarRoom() {
             🎯 Target Configuration Board (กรอบอัตรากำลังพลสะสม)
           </h3>
           <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-            <select
-              value={selectedAreaInput}
-              onChange={(e) => setSelectedAreaInput(e.target.value)}
-              className={`border px-2 py-1.5 rounded-xl outline-none font-bold ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800"}`}
-            >
-              <option value="">เลือก Area เพื่อเพิ่ม Target</option>
-              {[
-                "K01",
-                "K02",
-                "K03",
-                "K04",
-                "K05",
-                "K06",
-                "K07",
-                "K08",
-                "K09",
-                "K10",
-              ].map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleAddNewAreaBlock}
-              className={`flex items-center gap-1 border px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${isDarkMode ? "bg-[#1C2541] border-slate-700 text-white" : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"}`}
-            >
-              <Plus size={13} /> เพิ่ม Area
-            </button>
-            <button
-              onClick={handleSaveTargetsToSupabase}
-              disabled={isSavingTarget}
-              className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-xl font-black transition-all cursor-pointer shadow-md"
-            >
-              {isSavingTarget ? (
-                <RefreshCw size={13} className="animate-spin" />
-              ) : (
-                <Save size={13} />
-              )}
-              {isSavingTarget ? "กำลังบันทึก..." : "บันทึก Target ทั้งหมด"}
-            </button>
-          </div>
-        </div>
-
-        {/* แผงควบคุมกล่องรวมสะสมชั้นนำตัวใหม่ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-black">
-          <div
-            className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
-          >
-            <span className="text-yellow-500 text-[11px] uppercase block font-black">
-              📋 Total Target Plan สะสม
-            </span>
-            <div className="grid grid-cols-5 gap-2 text-center text-sm">
-              {["KOE", "MER", "COM", "BA"].map((r) => (
-                <div
-                  key={r}
-                  className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
+            {isTargetBoardOpen && (
+              <>
+                <select
+                  value={selectedAreaInput}
+                  onChange={(e) => setSelectedAreaInput(e.target.value)}
+                  className={`border px-2 py-1.5 rounded-xl outline-none font-bold ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800"}`}
                 >
-                  <span className="text-[10px] text-slate-500 block font-bold">
-                    {r}
-                  </span>
-                  <span
-                    className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                  >
-                    {(globalTargetSum.plan as any)[r]}
-                  </span>
-                </div>
-              ))}
-              <div
-                className={`p-2 rounded-lg border ${isDarkMode ? "bg-yellow-500/10 border-yellow-500/20" : "bg-yellow-50 border-yellow-200"}`}
-              >
-                <span className="text-[10px] text-yellow-500 block font-black">
-                  TOTAL
-                </span>
-                <span className="font-mono text-base font-black text-yellow-500">
-                  {globalTargetSum.plan.KOE +
-                    globalTargetSum.plan.MER +
-                    globalTargetSum.plan.COM +
-                    globalTargetSum.plan.BA}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div
-            className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
-          >
-            <span className="text-emerald-500 text-[11px] uppercase block font-black">
-              ✅ Total Target Approve สะสม
-            </span>
-            <div className="grid grid-cols-5 gap-2 text-center text-sm">
-              {["KOE", "MER", "COM", "BA"].map((r) => (
-                <div
-                  key={r}
-                  className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
-                >
-                  <span className="text-[10px] text-slate-500 block font-bold">
-                    {r}
-                  </span>
-                  <span
-                    className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                  >
-                    {(globalTargetSum.approve as any)[r]}
-                  </span>
-                </div>
-              ))}
-              <div
-                className={`p-2 rounded-lg border ${isDarkMode ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"}`}
-              >
-                <span className="text-[10px] text-emerald-500 block font-black">
-                  TOTAL
-                </span>
-                <span className="font-mono text-base font-black text-emerald-500">
-                  {globalTargetSum.approve.KOE +
-                    globalTargetSum.approve.MER +
-                    globalTargetSum.approve.COM +
-                    globalTargetSum.approve.BA}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Accordion รายพื้นที่ */}
-        <div className="space-y-3 text-xs font-bold pt-2">
-          {areaTargets.map((area, idx) => (
-            <div
-              key={area.id}
-              className={`border rounded-xl p-4 space-y-3 transition-colors duration-300 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-black text-[10px]">
-                  {area.name} Area Target
-                </span>
+                  <option value="">เลือก Area เพื่อเพิ่ม Target</option>
+                  {[
+                    "K01",
+                    "K02",
+                    "K03",
+                    "K04",
+                    "K05",
+                    "K06",
+                    "K07",
+                    "K08",
+                    "K09",
+                    "K10",
+                  ].map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
                 <button
-                  onClick={() => {
-                    const copy = [...areaTargets];
-                    copy[idx].open = !copy[idx].open;
-                    setAreaTargets(copy);
-                  }}
-                  className="text-slate-400"
+                  onClick={handleAddNewAreaBlock}
+                  className={`flex items-center gap-1 border px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${isDarkMode ? "bg-[#1C2541] border-slate-700 text-white" : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"}`}
                 >
-                  {area.open ? (
-                    <ChevronUp size={15} />
-                  ) : (
-                    <ChevronDown size={15} />
-                  )}
+                  <Plus size={13} /> เพิ่ม Area
                 </button>
-              </div>
+                <button
+                  onClick={handleSaveTargetsToSupabase}
+                  disabled={isSavingTarget}
+                  className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-xl font-black transition-all cursor-pointer shadow-md"
+                >
+                  {isSavingTarget ? (
+                    <RefreshCw size={13} className="animate-spin" />
+                  ) : (
+                    <Save size={13} />
+                  )}
+                  {isSavingTarget ? "กำลังบันทึก..." : "บันทึก Target ทั้งหมด"}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsTargetBoardOpen((isOpen) => !isOpen)}
+              aria-expanded={isTargetBoardOpen}
+              className={`flex items-center gap-1 border px-3 py-1.5 rounded-xl transition-colors ${isDarkMode ? "border-slate-700 text-slate-300 hover:bg-slate-800" : "border-slate-200 text-slate-600 hover:bg-slate-100"}`}
+            >
+              {isTargetBoardOpen ? (
+                <ChevronUp size={14} />
+              ) : (
+                <ChevronDown size={14} />
+              )}
+              {isTargetBoardOpen ? "ซ่อนการตั้งค่า" : "ตั้งค่า Target"}
+            </button>
+          </div>
+        </div>
 
-              {area.open && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-yellow-600 font-bold block">
-                      Target Plan
-                    </span>
-                    <div className="grid grid-cols-5 gap-2 text-center">
-                      {["KOE", "MER", "COM", "BA"].map((r) => (
-                        <div
-                          key={r}
-                          className={`border p-1.5 rounded-lg ${isDarkMode ? "bg-[#17203A] border-slate-800" : "bg-white border-slate-200"}`}
-                        >
-                          <span className="text-[9px] text-slate-400 block">
-                            {r}
-                          </span>
-                          <input
-                            type="number"
-                            value={(area.plan as any)[r]}
-                            onChange={(e) => {
-                              const copy = [...areaTargets];
-                              copy[idx].plan[r] = parseInt(e.target.value) || 0;
-                              setAreaTargets(copy);
-                            }}
-                            className={`bg-transparent w-full text-center font-mono font-black outline-none ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                          />
-                        </div>
-                      ))}
-                      <div
-                        className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#242A3D] border-yellow-500/20 text-yellow-400" : "bg-yellow-50 border-yellow-200 text-yellow-600"}`}
+        {isTargetBoardOpen && (
+          <>
+            {/* แผงควบคุมกล่องรวมสะสมชั้นนำตัวใหม่ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-black">
+              <div
+                className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
+              >
+                <span className="text-yellow-500 text-[11px] uppercase block font-black">
+                  📋 Total Target Plan สะสม
+                </span>
+                <div className="grid grid-cols-5 gap-2 text-center text-sm">
+                  {["KOE", "MER", "COM", "BA"].map((r) => (
+                    <div
+                      key={r}
+                      className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
+                    >
+                      <span className="text-[10px] text-slate-500 block font-bold">
+                        {r}
+                      </span>
+                      <span
+                        className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
                       >
-                        <span className="text-[9px] opacity-70 block font-black">
-                          TOTAL
-                        </span>
-                        <span className="font-mono font-black text-xs">
-                          {area.plan.KOE +
-                            area.plan.MER +
-                            area.plan.COM +
-                            area.plan.BA}
-                        </span>
-                      </div>
+                        {(globalTargetSum.plan as any)[r]}
+                      </span>
                     </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-emerald-600 font-bold block">
-                      Target Approve
-                    </span>
-                    <div className="grid grid-cols-5 gap-2 text-center">
-                      {["KOE", "MER", "COM", "BA"].map((r) => (
-                        <div
-                          key={r}
-                          className={`border p-1.5 rounded-lg ${isDarkMode ? "bg-[#17203A] border-slate-800" : "bg-white border-slate-200"}`}
-                        >
-                          <span className="text-[9px] text-slate-400 block">
-                            {r}
-                          </span>
-                          <input
-                            type="number"
-                            value={(area.approve as any)[r]}
-                            onChange={(e) => {
-                              const copy = [...areaTargets];
-                              copy[idx].approve[r] =
-                                parseInt(e.target.value) || 0;
-                              setAreaTargets(copy);
-                            }}
-                            className={`bg-transparent w-full text-center font-mono font-black outline-none ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                          />
-                        </div>
-                      ))}
-                      <div
-                        className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#1B2C2B] border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-600"}`}
-                      >
-                        <span className="text-[9px] opacity-70 block font-black">
-                          TOTAL
-                        </span>
-                        <span className="font-mono font-black text-xs">
-                          {area.approve.KOE +
-                            area.approve.MER +
-                            area.approve.COM +
-                            area.approve.BA}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
+                  ))}
                   <div
-                    className={`flex items-center gap-2 lg:col-span-2 pt-2 border-t text-[10px] ${isDarkMode ? "border-slate-800/40" : "border-slate-200"}`}
+                    className={`p-2 rounded-lg border ${isDarkMode ? "bg-yellow-500/10 border-yellow-500/20" : "bg-yellow-50 border-yellow-200"}`}
                   >
-                    <button
-                      onClick={() => handleCopyStructureValues(idx)}
-                      className={`flex items-center gap-1 border px-3 py-1 rounded-lg transition-all ${isDarkMode ? "bg-[#1C2541] border-slate-700 text-slate-300" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                    >
-                      <Copy size={11} /> โหลดค่าดีฟอลต์แนะนำ
-                    </button>
-                    <button
-                      onClick={() =>
-                        setAreaTargets(
-                          areaTargets.filter((t) => t.id !== area.id),
-                        )
-                      }
-                      className="flex items-center gap-1 bg-red-600/10 text-red-500 border border-red-500/20 px-3 py-1 rounded-lg"
-                    >
-                      <Trash2 size={11} /> ถอนพื้นที่ออก
-                    </button>
+                    <span className="text-[10px] text-yellow-500 block font-black">
+                      TOTAL
+                    </span>
+                    <span className="font-mono text-base font-black text-yellow-500">
+                      {globalTargetSum.plan.KOE +
+                        globalTargetSum.plan.MER +
+                        globalTargetSum.plan.COM +
+                        globalTargetSum.plan.BA}
+                    </span>
                   </div>
                 </div>
-              )}
+              </div>
+
+              <div
+                className={`p-4 rounded-xl border space-y-2 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
+              >
+                <span className="text-emerald-500 text-[11px] uppercase block font-black">
+                  ✅ Total Target Approve สะสม
+                </span>
+                <div className="grid grid-cols-5 gap-2 text-center text-sm">
+                  {["KOE", "MER", "COM", "BA"].map((r) => (
+                    <div
+                      key={r}
+                      className={`p-2 rounded-lg border ${isDarkMode ? "bg-[#060A13] border-slate-800" : "bg-white border-slate-200"}`}
+                    >
+                      <span className="text-[10px] text-slate-500 block font-bold">
+                        {r}
+                      </span>
+                      <span
+                        className={`font-mono text-base font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                      >
+                        {(globalTargetSum.approve as any)[r]}
+                      </span>
+                    </div>
+                  ))}
+                  <div
+                    className={`p-2 rounded-lg border ${isDarkMode ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"}`}
+                  >
+                    <span className="text-[10px] text-emerald-500 block font-black">
+                      TOTAL
+                    </span>
+                    <span className="font-mono text-base font-black text-emerald-500">
+                      {globalTargetSum.approve.KOE +
+                        globalTargetSum.approve.MER +
+                        globalTargetSum.approve.COM +
+                        globalTargetSum.approve.BA}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
+
+            {/* Accordion รายพื้นที่ */}
+            <div className="space-y-3 text-xs font-bold pt-2">
+              {areaTargets.map((area, idx) => (
+                <div
+                  key={area.id}
+                  className={`border rounded-xl p-4 space-y-3 transition-colors duration-300 ${isDarkMode ? "bg-[#111728] border-slate-800" : "bg-slate-50 border-slate-200"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-black text-[10px]">
+                      {area.name} Area Target
+                    </span>
+                    <button
+                      onClick={() => {
+                        const copy = [...areaTargets];
+                        copy[idx].open = !copy[idx].open;
+                        setAreaTargets(copy);
+                      }}
+                      className="text-slate-400"
+                    >
+                      {area.open ? (
+                        <ChevronUp size={15} />
+                      ) : (
+                        <ChevronDown size={15} />
+                      )}
+                    </button>
+                  </div>
+
+                  {area.open && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-yellow-600 font-bold block">
+                          Target Plan
+                        </span>
+                        <div className="grid grid-cols-5 gap-2 text-center">
+                          {["KOE", "MER", "COM", "BA"].map((r) => (
+                            <div
+                              key={r}
+                              className={`border p-1.5 rounded-lg ${isDarkMode ? "bg-[#17203A] border-slate-800" : "bg-white border-slate-200"}`}
+                            >
+                              <span className="text-[9px] text-slate-400 block">
+                                {r}
+                              </span>
+                              <input
+                                type="number"
+                                value={(area.plan as any)[r]}
+                                onChange={(e) => {
+                                  const copy = [...areaTargets];
+                                  copy[idx].plan[r] =
+                                    parseInt(e.target.value) || 0;
+                                  setAreaTargets(copy);
+                                }}
+                                className={`bg-transparent w-full text-center font-mono font-black outline-none ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                              />
+                            </div>
+                          ))}
+                          <div
+                            className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#242A3D] border-yellow-500/20 text-yellow-400" : "bg-yellow-50 border-yellow-200 text-yellow-600"}`}
+                          >
+                            <span className="text-[9px] opacity-70 block font-black">
+                              TOTAL
+                            </span>
+                            <span className="font-mono font-black text-xs">
+                              {area.plan.KOE +
+                                area.plan.MER +
+                                area.plan.COM +
+                                area.plan.BA}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-emerald-600 font-bold block">
+                          Target Approve
+                        </span>
+                        <div className="grid grid-cols-5 gap-2 text-center">
+                          {["KOE", "MER", "COM", "BA"].map((r) => (
+                            <div
+                              key={r}
+                              className={`border p-1.5 rounded-lg ${isDarkMode ? "bg-[#17203A] border-slate-800" : "bg-white border-slate-200"}`}
+                            >
+                              <span className="text-[9px] text-slate-400 block">
+                                {r}
+                              </span>
+                              <input
+                                type="number"
+                                value={(area.approve as any)[r]}
+                                onChange={(e) => {
+                                  const copy = [...areaTargets];
+                                  copy[idx].approve[r] =
+                                    parseInt(e.target.value) || 0;
+                                  setAreaTargets(copy);
+                                }}
+                                className={`bg-transparent w-full text-center font-mono font-black outline-none ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                              />
+                            </div>
+                          ))}
+                          <div
+                            className={`border p-1.5 rounded-lg flex flex-col justify-center ${isDarkMode ? "bg-[#1B2C2B] border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-600"}`}
+                          >
+                            <span className="text-[9px] opacity-70 block font-black">
+                              TOTAL
+                            </span>
+                            <span className="font-mono font-black text-xs">
+                              {area.approve.KOE +
+                                area.approve.MER +
+                                area.approve.COM +
+                                area.approve.BA}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-2 lg:col-span-2 pt-2 border-t text-[10px] ${isDarkMode ? "border-slate-800/40" : "border-slate-200"}`}
+                      >
+                        <button
+                          onClick={() => handleCopyStructureValues(idx)}
+                          className={`flex items-center gap-1 border px-3 py-1 rounded-lg transition-all ${isDarkMode ? "bg-[#1C2541] border-slate-700 text-slate-300" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                        >
+                          <Copy size={11} /> โหลดค่าดีฟอลต์แนะนำ
+                        </button>
+                        <button
+                          onClick={() =>
+                            setAreaTargets(
+                              areaTargets.filter((t) => t.id !== area.id),
+                            )
+                          }
+                          className="flex items-center gap-1 bg-red-600/10 text-red-500 border border-red-500/20 px-3 py-1 rounded-lg"
+                        >
+                          <Trash2 size={11} /> ถอนพื้นที่ออก
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Main Counter Blocks */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="order-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div
           className={`border p-3 rounded-xl flex items-center justify-between shadow-xl transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
           <div className="space-y-0.5">
-            <span className="text-[9px] font-bold text-slate-400 uppercase block">
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">
               Total Employees
             </span>
             <h4
@@ -1162,7 +1198,7 @@ export default function CompleteManpowerWarRoom() {
             >
               {totalCount.toLocaleString()}
             </h4>
-            <span className="text-[8px] bg-blue-600/10 text-blue-400 px-1.5 py-0.5 rounded font-bold">
+            <span className="text-[9px] bg-blue-600/10 text-blue-400 px-1.5 py-0.5 rounded font-bold">
               Active Filtered
             </span>
           </div>
@@ -1192,7 +1228,7 @@ export default function CompleteManpowerWarRoom() {
                 }}
               >
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">
                     สถานะ {st}
                   </span>
                   <h4
@@ -1200,7 +1236,7 @@ export default function CompleteManpowerWarRoom() {
                   >
                     {matchCount.toLocaleString()}
                   </h4>
-                  <span className="text-[8px] text-slate-500 block font-bold">
+                  <span className="text-[9px] text-slate-500 block font-bold">
                     ตามการกรอง Filter
                   </span>
                 </div>
@@ -1211,7 +1247,7 @@ export default function CompleteManpowerWarRoom() {
       </div>
 
       {/* Recharts Analytics Charts Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="order-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div
           className={`border p-4 rounded-2xl shadow-xl space-y-3 min-h-80 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
@@ -1378,7 +1414,7 @@ export default function CompleteManpowerWarRoom() {
 
       {/* Main Data Table */}
       <div
-        className={`border rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+        className={`order-6 border rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
       >
         <div
           className={`p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-b ${isDarkMode ? "bg-[#111A36]/40 border-[#222F54]" : "bg-slate-50 border-slate-200"}`}
@@ -1541,117 +1577,6 @@ export default function CompleteManpowerWarRoom() {
           </div>
         </div>
       </div>
-
-      {/* Footer Block */}
-      <footer
-        className={`border-t rounded-2xl p-6 md:p-8 shadow-2xl transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 text-xs font-bold">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`p-2.5 rounded-xl border ${isDarkMode ? "bg-[#060A13] border-slate-800 text-blue-400" : "bg-slate-100 border-slate-200 text-blue-600"}`}
-              >
-                <Building2 size={18} />
-              </div>
-              <div>
-                <h4
-                  className={`text-xs md:text-sm font-black uppercase tracking-wider ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                >
-                  FMBD CONTROLLER
-                </h4>
-                <p className="text-[9px] text-slate-400 uppercase mt-0.5 font-bold">
-                  Manpower Analytics
-                </p>
-              </div>
-            </div>
-            <p
-              className={`text-[11px] leading-relaxed font-medium ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-            >
-              ระบบติดตามและประเมินผลกำลังพลแบบเรียลไทม์
-              สำหรับการบริหารทีมงานทั่วประเทศ
-            </p>
-          </div>
-          <div className="space-y-3">
-            <span className="text-slate-400 text-[10px] uppercase tracking-wider block font-black">
-              NAVIGATION
-            </span>
-            <ul className="space-y-2.5">
-              <li>
-                <button
-                  onClick={() =>
-                    window.scrollTo({ top: 0, behavior: "smooth" })
-                  }
-                  className={`flex items-center gap-2 font-bold transition-colors ${isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  <ArrowUpDown size={13} className="text-slate-400" /> Dashboard
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => router.push("/kpi")}
-                  className={`flex items-center gap-2 font-bold transition-colors ${isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  <Trophy size={13} className="text-yellow-500" /> KPI Scoring
-                </button>
-              </li>
-            </ul>
-          </div>
-          <div className="space-y-3">
-            <span className="text-slate-400 text-[10px] uppercase tracking-wider block font-black">
-              QUICK LINKS
-            </span>
-            <ul className="space-y-2.5">
-              <li>
-                <span
-                  className={`flex items-center gap-2 cursor-pointer font-bold ${isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  <FileText size={13} className="text-slate-400" /> Target
-                  Settings
-                </span>
-              </li>
-              <li>
-                <span
-                  className={`flex items-center gap-2 cursor-pointer font-bold ${isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  <ShieldCheck size={13} className="text-slate-400" /> Penalty
-                  Config
-                </span>
-              </li>
-            </ul>
-          </div>
-          <div className="space-y-3">
-            <span className="text-slate-400 text-[10px] uppercase tracking-wider block font-black">
-              CONTACT
-            </span>
-            <ul className="space-y-2.5 font-medium text-[11px]">
-              <li
-                className={`flex items-center gap-2 ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
-              >
-                <Building2 size={13} className="text-slate-400 shrink-0" />{" "}
-                Riverpro Intertrade Co., Ltd
-              </li>
-              <li
-                className={`flex items-center gap-2 ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
-              >
-                <Mail size={13} className="text-slate-400 shrink-0" />{" "}
-                Niwat_wiy@riverpro.co.th
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div
-          className={`mt-8 pt-4 border-t flex flex-col sm:flex-row items-center justify-between text-[11px] font-bold text-slate-400 ${isDarkMode ? "border-slate-800/60" : "border-slate-200"}`}
-        >
-          <span>© 2026 Riverpro Intertrade Co., Ltd. All rights reserved.</span>
-          <span>
-            Powered by{" "}
-            <span className={isDarkMode ? "text-white" : "text-slate-800"}>
-              FMBD CONTROLLER
-            </span>
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }

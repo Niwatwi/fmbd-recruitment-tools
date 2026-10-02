@@ -57,6 +57,13 @@ const parseStampDate = (dateStr: any): Date | null => {
   return parsedDate;
 };
 
+const getCurrentYearDateRange = () => {
+  const today = new Date();
+  const dateTo = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  return { dateFrom: `${today.getFullYear()}-01-01`, dateTo };
+};
+
 export default function KPIDashboard() {
   const [rawData, setRawData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,8 +77,8 @@ export default function KPIDashboard() {
   const [filterAreaCode, setFilterAreaCode] = useState("All Area Code");
   const [filterRole, setFilterRole] = useState("All Role");
   const [filterStatus, setFilterStatus] = useState("All Status");
-  const [dateFrom, setDateFrom] = useState("2026-02-20");
-  const [dateTo, setDateTo] = useState("2026-06-19");
+  const [dateFrom, setDateFrom] = useState("2026-01-01");
+  const [dateTo, setDateTo] = useState("2026-12-31");
 
   const [searchTableTerm, setSearchTableTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -97,6 +104,9 @@ export default function KPIDashboard() {
 
   useEffect(() => {
     setIsMounted(true);
+    const dateRange = getCurrentYearDateRange();
+    setDateFrom(dateRange.dateFrom);
+    setDateTo(dateRange.dateTo);
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -299,6 +309,9 @@ export default function KPIDashboard() {
     setFilterStatus("All Status");
     setSearchTableTerm("");
     setCurrentPage(1);
+    const dateRange = getCurrentYearDateRange();
+    setDateFrom(dateRange.dateFrom);
+    setDateTo(dateRange.dateTo);
   };
 
   const filteredData = useMemo(() => {
