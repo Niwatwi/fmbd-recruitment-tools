@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { CheckCircle2, CircleAlert, LoaderCircle, Send } from "lucide-react";
 import { RiverproLogo } from "@/components/riverpro-footer";
+import { ThemeToggle } from "@/components/theme-provider";
 import { supabase } from "@/lib/supabase";
 
 type PublicJob = {
@@ -122,8 +123,9 @@ export function PublicApplicationForm({
   return (
     <div className="flex min-h-screen flex-col bg-[#0B0F19] text-slate-200">
       <header className="border-b border-[#1E293B] bg-[#111726] px-5 py-4 sm:px-8">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <RiverproLogo />
+          <ThemeToggle />
         </div>
       </header>
 

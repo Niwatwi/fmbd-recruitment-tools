@@ -245,6 +245,21 @@ export function ATSWorkspace() {
   const loadWorkspace = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        setHasATSAccess(false);
+        setNotice({
+          type: "error",
+          text: "กรุณาเข้าสู่ระบบก่อนใช้งาน ATS",
+        });
+        setJobs([]);
+        setApplications([]);
+        setNotifications([]);
+        return;
+      }
+
       const { data: authData, error: authError } =
         await supabase.auth.getUser();
       if (authError) throw authError;
@@ -352,23 +367,30 @@ export function ATSWorkspace() {
       setPendingOfferCount(offerResult.data?.length || 0);
       setNotifications(notificationResult.data || []);
     } catch (error: any) {
-      console.error("ATS workspace could not load:", error);
       const sessionMissing =
         error.name === "AuthSessionMissingError" ||
         error.message?.includes("Auth session missing");
+      const authNetworkUnavailable =
+        error.name === "AuthRetryableFetchError" ||
+        (error instanceof TypeError && error.message === "Failed to fetch");
       const schemaNotReady =
         error.code === "42P01" ||
         error.code === "PGRST205" ||
         error.message?.includes("ats_");
+      if (!sessionMissing && !authNetworkUnavailable) {
+        console.error("ATS workspace could not load:", error);
+      }
       setNotice({
         type: "error",
         text: sessionMissing
           ? "เซสชันหมดอายุ กรุณาเข้าสู่ระบบก่อนใช้งาน ATS"
-          : error.code === "42501"
-            ? "บัญชีนี้ยังไม่มีสิทธิ์ ATS กรุณาเพิ่ม role admin หรือ recruiter ในตาราง ats_user_roles"
-            : schemaNotReady
-              ? "ยังไม่พบตาราง ATS ใน Supabase ดาวน์โหลด schema SQL แล้วรันใน SQL Editor ก่อนโหลดหน้านี้ใหม่"
-              : error.message || "ไม่สามารถโหลดข้อมูล ATS ได้ กรุณาลองใหม่",
+          : authNetworkUnavailable
+            ? "เชื่อมต่อ Supabase Auth ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตหรือสถานะบริการ แล้วลองใหม่"
+            : error.code === "42501"
+              ? "บัญชีนี้ยังไม่มีสิทธิ์ ATS กรุณาเพิ่ม role admin หรือ recruiter ในตาราง ats_user_roles"
+              : schemaNotReady
+                ? "ยังไม่พบตาราง ATS ใน Supabase ดาวน์โหลด schema SQL แล้วรันใน SQL Editor ก่อนโหลดหน้านี้ใหม่"
+                : error.message || "ไม่สามารถโหลดข้อมูล ATS ได้ กรุณาลองใหม่",
       });
       if (error.code === "42501" || schemaNotReady) {
         setHasATSAccess(false);

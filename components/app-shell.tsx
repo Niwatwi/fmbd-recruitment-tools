@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { RiverproFooter, RiverproLogo } from "@/components/riverpro-footer";
+import { ThemeToggle } from "@/components/theme-provider";
 
 const navigation = [
   {
@@ -40,19 +41,25 @@ const navigation = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === "/login" || pathname.startsWith("/apply/")) {
-    return <>{children}</>;
+  if (pathname === "/login") {
+    return (
+      <>
+        <ThemeToggle className="fixed right-4 top-4 z-50" />
+        {children}
+      </>
+    );
   }
+
+  if (pathname.startsWith("/apply/")) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-200 md:flex md:h-screen md:overflow-hidden">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-[#1E293B] bg-[#111726] md:flex print:hidden">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-3 border-b border-[#1E293B] px-6 py-5"
-        >
-          <RiverproLogo />
-        </Link>
+        <div className="flex items-center border-b border-[#1E293B] px-6 py-5">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <RiverproLogo />
+          </Link>
+        </div>
 
         <nav aria-label="Main navigation" className="space-y-1 p-4">
           {navigation.map((item) => {
@@ -77,16 +84,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="mt-auto border-t border-[#1E293B] px-6 py-4 text-xs text-slate-500">
-          Recruitment & workforce operations
+        <div className="mt-auto border-t border-[#1E293B] px-4 py-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">Appearance</span>
+            <ThemeToggle />
+          </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Recruitment & workforce operations
+          </p>
         </div>
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col md:min-h-0">
         <header className="sticky top-0 z-40 border-b border-[#1E293B] bg-[#111726] md:hidden print:hidden">
-          <Link href="/dashboard" className="flex items-center gap-2 px-4 py-3">
-            <RiverproLogo compact />
-          </Link>
+          <div className="flex items-center justify-between px-4 py-2">
+            <Link
+              href="/dashboard"
+              className="flex min-w-0 flex-1 items-center gap-2 py-1"
+            >
+              <RiverproLogo compact />
+            </Link>
+            <ThemeToggle />
+          </div>
           <nav
             aria-label="Main navigation"
             className="flex border-t border-[#1E293B] px-1"

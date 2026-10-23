@@ -16,12 +16,11 @@ import {
   ChevronUp,
   Search,
   LogOut,
-  Sun,
-  Moon,
   Trophy,
   ArrowUpDown,
   Save,
 } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 import {
   PieChart,
   Pie,
@@ -73,7 +72,7 @@ export default function CompleteManpowerWarRoom() {
   const [loading, setLoading] = useState(true);
   const [isSavingTarget, setIsSavingTarget] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const { isDarkMode } = useTheme();
   const [isTargetBoardOpen, setIsTargetBoardOpen] = useState(false);
 
   // 🌐 กลุ่มควบคุมฟิลเตอร์หลักด้านบนสุด
@@ -747,19 +746,6 @@ export default function CompleteManpowerWarRoom() {
           >
             <Trophy size={14} className="text-yellow-400" />
             <span className="hidden sm:inline">KPI Scoring</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            aria-label={
-              isDarkMode ? "Switch to light theme" : "Switch to dark theme"
-            }
-            title={
-              isDarkMode ? "Switch to light theme" : "Switch to dark theme"
-            }
-            className={`p-2 rounded-xl border transition-all ${isDarkMode ? "bg-[#1C2541] border-slate-700/60 hover:bg-slate-700 text-yellow-400" : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-indigo-600"}`}
-          >
-            {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
           </button>
           <button
             type="button"
