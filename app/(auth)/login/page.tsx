@@ -22,12 +22,38 @@ export default function LoginPage() {
     const cleanEmail = email.trim().toLowerCase();
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail, // 👈 2. เปลี่ยนมาใช้ cleanEmail ตัวที่แปลงแล้วแทนครับ
-        password,
-      });
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email: cleanEmail, // 👈 2. เปลี่ยนมาใช้ cleanEmail ตัวที่แปลงแล้วแทนครับ
+          password,
+        });
 
-      if (error) throw error;
+      if (authError) throw authError;
+
+      const profileEmail = authData.user.email?.trim().toLowerCase();
+      if (!profileEmail) {
+        throw new Error("ไม่พบอีเมลของบัญชีผู้ใช้ กรุณาติดต่อผู้ดูแลระบบ");
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select(
+          "id,email,username,display_name,company_tag,area,employee_id,employment_type,is_active,image_url",
+        )
+        .eq("email", profileEmail)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+        throw new Error(
+          "ไม่พบโปรไฟล์ผู้ใช้หรือไม่มีสิทธิ์อ่านข้อมูล user_profiles กรุณาติดต่อผู้ดูแลระบบ",
+        );
+      }
+
+      if (profile.is_active !== true) {
+        await supabase.auth.signOut();
+        throw new Error("บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ");
+      }
 
       // ล็อกอินผ่านสำเร็จ ส่งตัวพนักงานเข้าหน้าหลัก Dashboard
       window.location.href = "/dashboard";
