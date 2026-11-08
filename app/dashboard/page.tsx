@@ -66,6 +66,40 @@ const MONTH_NAMES: any = {
   "12": "December",
 };
 
+const parseDashboardStampDate = (value: any): Date | null => {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.toString().trim();
+  if (!trimmed) return null;
+
+  const dateParts = trimmed.match(
+    /^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})(?:$|[T\s])/,
+  );
+
+  if (dateParts) {
+    const [, first, second, third] = dateParts;
+    const isYearFirst = first.length === 4;
+    const year = Number(isYearFirst ? first : third);
+    const month = Number(second);
+    const day = Number(isYearFirst ? third : first);
+    const parsedDate = new Date(year, month - 1, day);
+
+    if (
+      parsedDate.getFullYear() !== year ||
+      parsedDate.getMonth() !== month - 1 ||
+      parsedDate.getDate() !== day
+    ) {
+      return null;
+    }
+    return parsedDate;
+  }
+
+  const parsedDate = new Date(trimmed);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const formatDashboardDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 export default function CompleteManpowerWarRoom() {
   const router = useRouter();
   const [rawData, setRawData] = useState<any[]>([]);
@@ -348,7 +382,16 @@ export default function CompleteManpowerWarRoom() {
     () => [
       "All Year",
       ...Array.from(
-        new Set(rawData.map((d) => d.year_num?.toString()).filter(Boolean)),
+        new Set(
+          rawData
+            .map(
+              (d) =>
+                parseDashboardStampDate(d.date_stamp)
+                  ?.getFullYear()
+                  .toString() ?? d.year_num?.toString(),
+            )
+            .filter(Boolean),
+        ),
       ),
     ],
     [rawData],
@@ -358,7 +401,16 @@ export default function CompleteManpowerWarRoom() {
     () => [
       "All Month",
       ...Array.from(
-        new Set(rawData.map((d) => d.month_num?.toString()).filter(Boolean)),
+        new Set(
+          rawData
+            .map((d) => {
+              const date = parseDashboardStampDate(d.date_stamp);
+              return date
+                ? (date.getMonth() + 1).toString()
+                : d.month_num?.toString();
+            })
+            .filter(Boolean),
+        ),
       ),
     ],
     [rawData],
@@ -421,28 +473,16 @@ export default function CompleteManpowerWarRoom() {
   // 📊 1. บล็อกกรองข้อมูลหลักอัจฉริยะ (ยึดตามวันที่และคอลัมน์ status_app ตามสูตรของพี่ยอด)
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
-      let itemYear = item.year_num ? parseInt(item.year_num, 10) : null;
-      let itemMonth = item.month_num ? parseInt(item.month_num, 10) : null;
-      let cleanItemDate = null;
-
-      if (item.date_stamp) {
-        const dateNums = item.date_stamp.toString().match(/\d+/g);
-        if (dateNums && dateNums.length >= 3) {
-          let day = dateNums[0];
-          let month = dateNums[1];
-          let year = dateNums[2];
-
-          if (dateNums[0].length === 4) {
-            year = dateNums[0];
-            month = dateNums[1];
-            day = dateNums[2];
-          }
-
-          itemYear = parseInt(year, 10);
-          itemMonth = parseInt(month, 10);
-          cleanItemDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-        }
-      }
+      const stampDate = parseDashboardStampDate(item.date_stamp);
+      const itemYear =
+        stampDate?.getFullYear() ??
+        (item.year_num ? parseInt(item.year_num, 10) : null);
+      const itemMonth = stampDate
+        ? stampDate.getMonth() + 1
+        : item.month_num
+          ? parseInt(item.month_num, 10)
+          : null;
+      const cleanItemDate = stampDate ? formatDashboardDate(stampDate) : null;
 
       if (filterYear !== "All Year") {
         const selectedYear = parseInt(filterYear, 10);
@@ -537,8 +577,17 @@ export default function CompleteManpowerWarRoom() {
     const monthsMap: Record<string, any> = {};
 
     filteredData.forEach((item) => {
-      const y = item.year_num?.toString() || "2026";
-      const m = (item.month_num?.toString() || "").padStart(2, "0");
+      const stampDate = parseDashboardStampDate(item.date_stamp);
+      const y =
+        stampDate?.getFullYear().toString() ||
+        item.year_num?.toString() ||
+        "2026";
+      const monthNumber = stampDate
+        ? stampDate.getMonth() + 1
+        : parseInt(item.month_num, 10);
+      const m = Number.isFinite(monthNumber)
+        ? monthNumber.toString().padStart(2, "0")
+        : "";
       if (!m) return;
       const key = `${y}-${m}`;
 
@@ -851,7 +900,10 @@ export default function CompleteManpowerWarRoom() {
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setCurrentPage(1);
+              }}
               className={`w-full border rounded-xl px-3 py-1.5 outline-none font-black ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
             />
           </div>
@@ -862,7 +914,10 @@ export default function CompleteManpowerWarRoom() {
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setCurrentPage(1);
+              }}
               className={`w-full border rounded-xl px-3 py-1.5 outline-none font-black ${isDarkMode ? "bg-[#111A36] border-[#222F54] text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`}
             />
           </div>

@@ -41,11 +41,24 @@ const parseStampDate = (dateStr: any): Date | null => {
   const trimmed = dateStr.trim();
   if (!trimmed) return null;
 
+  const dateParts = trimmed.match(/^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})$/);
   let parsedDate: Date;
-  const parts = trimmed.split("-");
 
-  if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
-    parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+  if (dateParts) {
+    const [, first, second, third] = dateParts;
+    const isYearFirst = first.length === 4;
+    const year = Number(isYearFirst ? first : third);
+    const month = Number(second);
+    const day = Number(isYearFirst ? third : first);
+    parsedDate = new Date(year, month - 1, day);
+
+    if (
+      parsedDate.getFullYear() !== year ||
+      parsedDate.getMonth() !== month - 1 ||
+      parsedDate.getDate() !== day
+    ) {
+      return null;
+    }
   } else {
     parsedDate = new Date(trimmed);
   }
@@ -116,6 +129,20 @@ export default function KPIDashboard() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    filterYear,
+    filterMonth,
+    filterArea,
+    filterAreaCode,
+    filterRole,
+    filterStatus,
+    dateFrom,
+    dateTo,
+    searchTableTerm,
+  ]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -268,7 +295,15 @@ export default function KPIDashboard() {
     () => [
       "All Year",
       ...Array.from(
-        new Set(rawData.map((d) => d.year_num?.toString()).filter(Boolean)),
+        new Set(
+          rawData
+            .map(
+              (d) =>
+                parseStampDate(d.date_stamp)?.getFullYear().toString() ??
+                d.year_num?.toString(),
+            )
+            .filter(Boolean),
+        ),
       ),
     ],
     [rawData],
@@ -278,7 +313,16 @@ export default function KPIDashboard() {
     () => [
       "All Month",
       ...Array.from(
-        new Set(rawData.map((d) => d.month_num?.toString()).filter(Boolean)),
+        new Set(
+          rawData
+            .map((d) => {
+              const date = parseStampDate(d.date_stamp);
+              return date
+                ? (date.getMonth() + 1).toString()
+                : d.month_num?.toString();
+            })
+            .filter(Boolean),
+        ),
       ),
     ],
     [rawData],
@@ -316,12 +360,15 @@ export default function KPIDashboard() {
 
   const filteredData = useMemo(() => {
     return rawData.filter((item) => {
-      if (filterYear !== "All Year" && item.year_num?.toString() !== filterYear)
-        return false;
-      if (
-        filterMonth !== "All Month" &&
-        item.month_num?.toString() !== filterMonth
-      )
+      const targetDate = parseStampDate(item.date_stamp);
+      const itemYear =
+        targetDate?.getFullYear().toString() ?? item.year_num?.toString();
+      const itemMonth = targetDate
+        ? (targetDate.getMonth() + 1).toString()
+        : item.month_num?.toString();
+
+      if (filterYear !== "All Year" && itemYear !== filterYear) return false;
+      if (filterMonth !== "All Month" && itemMonth !== filterMonth)
         return false;
       if (filterArea !== "All Area" && item.area !== filterArea) return false;
       if (
@@ -333,12 +380,10 @@ export default function KPIDashboard() {
       if (filterStatus !== "All Status" && item.status_app !== filterStatus)
         return false;
 
-      if (item.date_stamp) {
-        const targetDate = parseStampDate(item.date_stamp);
-        if (targetDate) {
-          const formatted = targetDate.toISOString().split("T")[0];
-          if (formatted < dateFrom || formatted > dateTo) return false;
-        }
+      if (targetDate) {
+        const formatted = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}-${String(targetDate.getDate()).padStart(2, "0")}`;
+        if (dateFrom && formatted < dateFrom) return false;
+        if (dateTo && formatted > dateTo) return false;
       }
       return true;
     });
@@ -785,7 +830,7 @@ export default function KPIDashboard() {
                         {item.employee_type || "-"}
                       </td>
                       <td className="px-5 py-3.5 text-blue-400 font-mono">
-                        {item.area || "-"}
+                        {item.area_code || "-"}
                       </td>
                       <td className="px-5 py-3.5">
                         <span
