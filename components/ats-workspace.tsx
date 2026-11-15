@@ -68,6 +68,7 @@ type Application = {
   applied_at: string;
   next_action_at: string | null;
   notes: string | null;
+  candidate_details: Record<string, unknown> | null;
   candidate: Candidate | null;
   job: Job | null;
 };
@@ -203,6 +204,13 @@ export function ATSWorkspace() {
   const [applicationLinks, setApplicationLinks] = useState<
     Record<string, string>
   >({});
+  const [applicationLinkEmails, setApplicationLinkEmails] = useState<
+    Record<string, string>
+  >({});
+  const [sendingApplicationLinkFor, setSendingApplicationLinkFor] = useState<
+    string | null
+  >(null);
+  const [forwardingApplication, setForwardingApplication] = useState(false);
   const [candidateDialogOpen, setCandidateDialogOpen] = useState(false);
   const [jobDialogOpen, setJobDialogOpen] = useState(false);
   const [activeApplicationId, setActiveApplicationId] = useState<string | null>(
@@ -1218,6 +1226,93 @@ export function ATSWorkspace() {
     }
   };
 
+  const sendApplicationLink = async (job: Job) => {
+    const recipient = applicationLinkEmails[job.id]?.trim().toLowerCase();
+    const url = applicationLinks[job.id];
+    if (!recipient || !url) {
+      setNotice({
+        type: "error",
+        text: "กรุณาสร้างลิงก์และกรอกอีเมลผู้สมัครก่อนส่ง",
+      });
+      return;
+    }
+    setSendingApplicationLinkFor(job.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch("/api/ats/send-application-link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionData.session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          jobCode: job.job_code,
+          applicationUrl: url,
+          recipient,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(result.error || "ส่งลิงก์สมัครไม่สำเร็จ");
+      setNotice({
+        type: "success",
+        text: `ส่งลิงก์สมัครงานไปยัง ${result.recipient} แล้ว`,
+      });
+    } catch (error: any) {
+      setNotice({
+        type: "error",
+        text: error.message || "ส่งลิงก์สมัครไม่สำเร็จ",
+      });
+    } finally {
+      setSendingApplicationLinkFor(null);
+    }
+  };
+
+  const exportApplicationPdf = () => {
+    const cleanup = () =>
+      document.body.classList.remove("ats-application-printing");
+    document.body.classList.add("ats-application-printing");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    window.setTimeout(() => window.print(), 100);
+  };
+
+  const forwardApplicationToHR = async (application: Application) => {
+    if (application.stage !== "hired") {
+      setNotice({
+        type: "error",
+        text: "ส่งต่อ HR ได้เมื่อปรับสถานะใบสมัครเป็น Hired แล้วเท่านั้น",
+      });
+      return;
+    }
+    setForwardingApplication(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch("/api/ats/forward-application", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionData.session?.access_token || ""}`,
+        },
+        body: JSON.stringify({ applicationId: application.id }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(result.error || "ส่งใบสมัครให้ HR ไม่สำเร็จ");
+      setNotice({
+        type: "success",
+        text: `ส่งใบสมัคร ${application.application_code} ให้ HR (${result.recipient}) แล้ว`,
+      });
+      await refreshApplicationDetails(application);
+    } catch (error: any) {
+      setNotice({
+        type: "error",
+        text: error.message || "ส่งใบสมัครให้ HR ไม่สำเร็จ",
+      });
+    } finally {
+      setForwardingApplication(false);
+    }
+  };
+
   const reviewApplication = async (
     application: Application,
     decision: "approved" | "declined",
@@ -1854,24 +1949,60 @@ export function ATSWorkspace() {
                   </td>
                   <td className="min-w-80 px-4 py-3.5">
                     {applicationLinks[job.id] ? (
-                      <div className="flex min-w-72 items-center gap-2">
-                        <input
-                          aria-label={`Application link for ${job.job_code}`}
-                          className="min-w-0 flex-1 rounded-md border border-[#2A3548] bg-[#0B1220] px-2 py-1.5 font-mono text-[11px] text-slate-300"
-                          readOnly
-                          value={applicationLinks[job.id]}
-                        />
-                        <button
-                          aria-label={`Copy application link for ${job.job_code}`}
-                          className="rounded-md border border-[#2A3548] p-2 text-slate-300 hover:bg-white/5"
-                          onClick={() =>
-                            void copyApplicationLink(applicationLinks[job.id])
-                          }
-                          title="Copy application link"
-                          type="button"
-                        >
-                          <Copy size={14} />
-                        </button>
+                      <div className="grid min-w-72 gap-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            aria-label={`Application link for ${job.job_code}`}
+                            className="min-w-0 flex-1 rounded-md border border-[#2A3548] bg-[#0B1220] px-2 py-1.5 font-mono text-[11px] text-slate-300"
+                            readOnly
+                            value={applicationLinks[job.id]}
+                          />
+                          <button
+                            aria-label={`Copy application link for ${job.job_code}`}
+                            className="rounded-md border border-[#2A3548] p-2 text-slate-300 hover:bg-white/5"
+                            onClick={() =>
+                              void copyApplicationLink(applicationLinks[job.id])
+                            }
+                            title="Copy application link"
+                            type="button"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            aria-label={`Applicant email for ${job.job_code}`}
+                            className="min-w-0 flex-1 rounded-md border border-[#2A3548] bg-[#0B1220] px-2 py-1.5 text-xs text-slate-200"
+                            onChange={(event) =>
+                              setApplicationLinkEmails((current) => ({
+                                ...current,
+                                [job.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Applicant email"
+                            type="email"
+                            value={applicationLinkEmails[job.id] || ""}
+                          />
+                          <button
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-500 px-2.5 py-1.5 text-xs font-semibold text-[#06120D] disabled:opacity-50"
+                            disabled={
+                              sendingApplicationLinkFor === job.id ||
+                              !applicationLinkEmails[job.id]?.trim()
+                            }
+                            onClick={() => void sendApplicationLink(job)}
+                            type="button"
+                          >
+                            {sendingApplicationLinkFor === job.id ? (
+                              <LoaderCircle
+                                className="animate-spin"
+                                size={13}
+                              />
+                            ) : (
+                              <Mail size={13} />
+                            )}
+                            Send form
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -2182,6 +2313,40 @@ export function ATSWorkspace() {
           title="Application details"
           wide
         >
+          <div className="mb-5 flex flex-wrap gap-2 border-b border-[#253044] pb-4">
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-[#2A3548] px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/5"
+              onClick={exportApplicationPdf}
+              type="button"
+            >
+              <Download size={14} /> Export application PDF
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-[#06120D] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                forwardingApplication || activeApplication.stage !== "hired"
+              }
+              onClick={() => void forwardApplicationToHR(activeApplication)}
+              title={
+                activeApplication.stage !== "hired"
+                  ? "Set application stage to Hired first"
+                  : "Send application to configured HR email"
+              }
+              type="button"
+            >
+              {forwardingApplication ? (
+                <LoaderCircle className="animate-spin" size={14} />
+              ) : (
+                <Mail size={14} />
+              )}
+              {forwardingApplication ? "Sending to HR..." : "Send to HR"}
+            </button>
+            {activeApplication.stage !== "hired" && (
+              <span className="self-center text-[11px] text-slate-500">
+                Set stage to Hired to enable HR handoff
+              </span>
+            )}
+          </div>
           <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
             <section className="space-y-4">
               <div className="rounded-lg border border-[#263246] bg-[#0B1220] p-4">
@@ -2233,11 +2398,50 @@ export function ATSWorkspace() {
                   </a>
                 )}
               </div>
+              {activeApplication.candidate_details &&
+                Object.keys(activeApplication.candidate_details).length > 0 && (
+                  <div className="rounded-lg border border-[#263246] bg-[#0B1220] p-4">
+                    <h3 className="mb-3 text-sm font-semibold text-white">
+                      Applicant details
+                    </h3>
+                    <dl className="grid gap-3 sm:grid-cols-2">
+                      {Object.entries(activeApplication.candidate_details).map(
+                        ([key, value]) => (
+                          <div
+                            className="border-b border-[#263246] pb-2"
+                            key={key}
+                          >
+                            <dt className="text-[11px] font-medium text-slate-500">
+                              {key.replace(/[._]+/g, " ")}
+                            </dt>
+                            <dd className="mt-1 whitespace-pre-wrap wrap-break-word text-sm text-slate-200">
+                              {Array.isArray(value)
+                                ? value.join(", ")
+                                : String(value ?? "-")}
+                            </dd>
+                          </div>
+                        ),
+                      )}
+                    </dl>
+                  </div>
+                )}
               <div className="rounded-lg border border-[#263246] p-4">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
                   <CalendarClock size={16} className="text-amber-300" />{" "}
                   Schedule interview
                 </h3>
+                <p className="mb-3 rounded-md border border-sky-500/15 bg-sky-500/5 px-3 py-2 text-xs text-sky-200">
+                  Applicant preference:{" "}
+                  {String(
+                    activeApplication.candidate_details
+                      ?.preferred_interview_channel || "Not specified",
+                  )}{" "}
+                  ·{" "}
+                  {String(
+                    activeApplication.candidate_details
+                      ?.preferred_interview_times || "No preferred time shared",
+                  )}
+                </p>
                 {activeApplication.review_status !== "approved" && (
                   <p className="mb-3 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
                     Approve this application before scheduling an interview.
@@ -2274,9 +2478,10 @@ export function ATSWorkspace() {
                       }
                       value={interviewForm.interview_type}
                     >
-                      <option value="video">Video</option>
+                      <option value="video">Online video meeting</option>
                       <option value="onsite">On-site</option>
                       <option value="phone">Phone</option>
+                      <option value="other">Other agreed channel</option>
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">
@@ -2586,6 +2791,63 @@ export function ATSWorkspace() {
             </section>
           </div>
         </Dialog>
+      )}
+      {activeApplication && (
+        <section id="ats-application-print-sheet" aria-hidden="true">
+          <h1>Employment Application</h1>
+          <h2>
+            {activeApplication.job?.title || "Riverpro"} ·{" "}
+            {activeApplication.job?.job_code}
+          </h2>
+          <p>
+            Application: {activeApplication.application_code} · Stage:{" "}
+            {stageLabel(activeApplication.stage)}
+          </p>
+          <table>
+            <tbody>
+              <tr>
+                <th>Full name</th>
+                <td>{activeApplication.candidate?.full_name || "-"}</td>
+              </tr>
+              <tr>
+                <th>Email</th>
+                <td>{activeApplication.candidate?.email || "-"}</td>
+              </tr>
+              <tr>
+                <th>Phone</th>
+                <td>{activeApplication.candidate?.phone || "-"}</td>
+              </tr>
+              <tr>
+                <th>Location</th>
+                <td>{activeApplication.candidate?.location || "-"}</td>
+              </tr>
+              <tr>
+                <th>LinkedIn</th>
+                <td>{activeApplication.candidate?.linkedin_url || "-"}</td>
+              </tr>
+              <tr>
+                <th>Resume</th>
+                <td>{activeApplication.candidate?.resume_url || "-"}</td>
+              </tr>
+              {Object.entries(activeApplication.candidate_details || {}).map(
+                ([key, value]) => (
+                  <tr key={key}>
+                    <th>{key.replace(/[._]+/g, " ")}</th>
+                    <td>
+                      {Array.isArray(value)
+                        ? value.join(", ")
+                        : String(value ?? "-")}
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+          <p className="ats-application-print-signature">
+            Recruiter ..................................................... HR
+            .....................................................
+          </p>
+        </section>
       )}
     </div>
   );

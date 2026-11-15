@@ -28,13 +28,15 @@ Use UTF-8 CSV or Excel. Preserve all `*_code` columns as text. Codes are case-in
 
 ## 4. Public application links and review
 
-After running the updated schema, open an open requisition in the ATS and choose **Generate link**. The app stores only a SHA-256 hash of the random token. Copy the link immediately; generating another link rotates the token and invalidates the previous URL.
+Run the updated `supabase/ats_schema.sql` in the Supabase SQL Editor to add the public application profile-details field and submission RPC signature before using the expanded application form. Then open an open requisition in the ATS and choose **Generate link**. The app stores only a SHA-256 hash of the random token. Copy the link immediately; generating another link rotates the token and invalidates the previous URL.
 
 The public form submits through `ats_submit_public_application`, which accepts only an enabled, open requisition, requires privacy consent, rejects duplicate applications to the same job, and creates an admin inbox notification. Applicants cannot select or change their review status. Recruiters approve or decline from the ATS; approval moves the application to Screening.
 
-## 5. Interview invitation email
+## 5. Recruiter email workflow
 
-The ATS records interview times even when outbound email is not configured. To send invitations automatically, set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` on the server/deployment environment using `.env.example` as a guide. Verify the sender domain with Resend first. Never prefix these values with `NEXT_PUBLIC_` or expose them in browser code. Without these values, the appointment is saved and the admin receives an explicit email-not-sent message.
+Set `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `HR_RECRUITMENT_EMAIL` on the server/deployment environment using `.env.example` as a guide. Verify the sender domain with Resend first. Never prefix these values with `NEXT_PUBLIC_` or expose them in browser code. The ATS can email an applicant a validated requisition link, send interview invitations after recruiter approval, and forward an approved application to the configured HR address after the application reaches `Hired`. Recruiters can also export application details as PDF from the application record. Without the mail settings, interview appointments and application links remain usable for manual sharing, while email actions return a clear configuration error.
+
+Applicants can provide preferred interview channels and times on the online form. Recruiters should use those preferences when selecting video, phone, or on-site format and include the meeting link or location before sending the invitation.
 
 The public form captures a candidate's privacy consent date. Before production, link the form to Riverpro's approved privacy notice and confirm retention, access, and deletion procedures under applicable privacy law.
 
@@ -60,6 +62,6 @@ Required: `application_code`, `candidate_code`, `job_code`.
 
 Optional: `stage`, `source`, `owner_email`, `applied_at`, `next_action_at`, `notes`.
 
-`stage`: `new_applicant`, `screening`, `interview`, `assessment`, `offer`, `hired`, `rejected`, `withdrawn`. Datetimes should use ISO 8601, for example `2026-10-02T09:00:00+07:00`. Candidate and job codes must already exist.
+`stage`: `new_applicant`, `screening`, `interview`, `assessment`, `offer`, `hired`, `rejected`, `withdrawn`. Date and time values should use ISO 8601, for example `2026-10-02T09:00:00+07:00`. Candidate and job codes must already exist.
 
 Interviews and offers are created from the application detail workflow so scheduling, approvals, and activity history stay linked to the application. Restrict admin access, compensation, CV links, and interview feedback according to company policy and applicable privacy law.

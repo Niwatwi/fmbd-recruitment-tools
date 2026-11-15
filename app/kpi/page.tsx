@@ -99,6 +99,40 @@ const getLatestEmployeeRows = (rows: any[]) => {
   return Array.from(latestRows.values());
 };
 
+function MtdTrendChart({ values, color }: { values: number[]; color: string }) {
+  const minimum = Math.min(...values, 0);
+  const maximum = Math.max(...values, 1);
+  const range = maximum - minimum || 1;
+  const points = values
+    .map((value, index) => {
+      const x = values.length < 2 ? 50 : (index / (values.length - 1)) * 100;
+      const y = 24 - ((value - minimum) / range) * 20;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="mt-1 flex items-center gap-2 text-[9px] font-bold text-slate-500">
+      <svg
+        aria-label="Month-to-date trend"
+        className="h-6 flex-1"
+        viewBox="0 0 100 26"
+        preserveAspectRatio="none"
+        role="img"
+      >
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <span>MTD</span>
+    </div>
+  );
+}
+
 export default function KPIDashboard() {
   const [rawData, setRawData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -465,6 +499,132 @@ export default function KPIDashboard() {
     };
   }, [filteredData, areaTargets, filterArea, personPenaltyMap]);
 
+  const mtdTrend = useMemo(() => {
+    const trend = {
+      target: [] as number[],
+      active: [] as number[],
+      base: [] as number[],
+      penalty: [] as number[],
+      final: [] as number[],
+    };
+    const targetTotal = areaTargets
+      .filter(
+        (target) => filterArea === "All Area" || target.name === filterArea,
+      )
+      .reduce(
+        (sum, target) =>
+          sum + target.approve.MER + target.approve.COM + target.approve.BA,
+        0,
+      );
+    const historyByPerson = new Map<string, any[]>();
+    rawData.forEach((row) => {
+      if (!row.fullname || !["MER", "COM", "BA"].includes(row.employee_type))
+        return;
+      const history = historyByPerson.get(row.fullname) || [];
+      history.push(row);
+      historyByPerson.set(row.fullname, history);
+    });
+    historyByPerson.forEach((history) =>
+      history.sort(
+        (first, second) =>
+          (parseStampDate(first.date_stamp)?.getTime() || 0) -
+          (parseStampDate(second.date_stamp)?.getTime() || 0),
+      ),
+    );
+    const scopedRows = rawData.filter((row) => {
+      const date = parseStampDate(row.date_stamp);
+      if (!date || date > evaluationDate) return false;
+      const itemYear = date.getFullYear().toString();
+      const itemMonth = (date.getMonth() + 1).toString();
+      if (filterYear !== "All Year" && itemYear !== filterYear) return false;
+      if (filterMonth !== "All Month" && itemMonth !== filterMonth)
+        return false;
+      if (filterArea !== "All Area" && row.area !== filterArea) return false;
+      if (
+        filterAreaCode !== "All Area Code" &&
+        row.area_code !== filterAreaCode
+      )
+        return false;
+      if (filterRole !== "All Role" && row.role !== filterRole) return false;
+      if (filterStatus !== "All Status" && row.status_app !== filterStatus)
+        return false;
+      return true;
+    });
+
+    for (let day = 1; day <= evaluationDate.getDate(); day += 1) {
+      const cutoff = new Date(
+        evaluationDate.getFullYear(),
+        evaluationDate.getMonth(),
+        day,
+        23,
+        59,
+        59,
+      );
+      const snapshot = getLatestEmployeeRows(
+        scopedRows.filter((row) => {
+          const date = parseStampDate(row.date_stamp);
+          return date && date <= cutoff;
+        }),
+      );
+      const activeOps = snapshot.filter(
+        (row) =>
+          row.status_app === "ปกติ" &&
+          ["MER", "COM", "BA"].includes(row.employee_type),
+      ).length;
+      const people = Array.from(
+        new Set(
+          snapshot
+            .filter((row) => ["MER", "COM", "BA"].includes(row.employee_type))
+            .map((row) => row.fullname)
+            .filter(Boolean),
+        ),
+      );
+      const totalPenalty = people.reduce((sum, name) => {
+        let penalty = 0;
+        let cycleStart: Date | null = null;
+        (historyByPerson.get(name) || []).forEach((row) => {
+          const date = parseStampDate(row.date_stamp);
+          if (!date || date > cutoff) return;
+          if (row.status_app === "แจ้งลาออก" || row.status_app === "สรรหา") {
+            if (!cycleStart) cycleStart = date;
+          } else if (row.status_app === "ปกติ" && cycleStart) {
+            const days = Math.floor(
+              (date.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24),
+            );
+            if (days > 15) penalty += Math.min(days - 15, 30);
+            cycleStart = null;
+          }
+        });
+        if (cycleStart) {
+          const days = Math.floor(
+            (cutoff.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          if (days > 15) penalty += Math.min(days - 15, 30);
+        }
+        return sum + penalty;
+      }, 0);
+      const averagePenalty = people.length ? totalPenalty / people.length : 0;
+      const base = targetTotal > 0 ? (activeOps / targetTotal) * 100 : 0;
+      trend.target.push(targetTotal);
+      trend.active.push(activeOps);
+      trend.base.push(base);
+      trend.penalty.push(averagePenalty);
+      trend.final.push(Math.max(base - averagePenalty, 0));
+    }
+
+    return trend;
+  }, [
+    rawData,
+    evaluationDate,
+    areaTargets,
+    filterArea,
+    filterAreaCode,
+    filterRole,
+    filterStatus,
+    filterYear,
+    filterMonth,
+  ]);
+
   const areaKPIScorecards = useMemo(() => {
     return areaTargets
       .map((targetArea) => {
@@ -570,7 +730,7 @@ export default function KPIDashboard() {
   const totalPagesCount = Math.ceil(searchedRows.length / rowsPerPage);
 
   return (
-    <div className="min-h-screen bg-[#060608] text-white p-4 md:p-8 space-y-6 font-sans select-none print:bg-white print:text-black print:p-0">
+    <div className="min-h-screen bg-linear-to-br from-[#060608] via-[#111a2c] to-[#06383a] text-white p-4 md:p-8 space-y-6 font-sans select-none print:bg-white print:text-black print:p-0">
       {/* SCREEN VIEW */}
       <div className="print:hidden space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
@@ -584,7 +744,7 @@ export default function KPIDashboard() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-[#0D0D10] border border-white/10 px-4 py-1.5 rounded-xl font-mono text-xs flex items-center gap-2 text-slate-300">
+            <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 px-4 py-1.5 rounded-xl font-mono text-xs flex items-center gap-2 text-slate-300">
               <Clock size={13} className="text-blue-400 animate-pulse" />
               <span>
                 {isMounted ? currentTime.toLocaleDateString("th-TH") : "..."}
@@ -615,7 +775,7 @@ export default function KPIDashboard() {
         </div>
 
         {/* Filters */}
-        <div className="bg-[#0D0D10] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
+        <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-bold">
             <div>
               <label className="block text-slate-500 mb-1.5 uppercase text-[9px]">
@@ -716,50 +876,55 @@ export default function KPIDashboard() {
 
         {/* Counter Blocks */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="bg-[#0D0D10] border border-white/10 p-4 rounded-xl">
+          <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 p-4 rounded-xl">
             <p className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">
               Target Approve (MER,COM,BA)
             </p>
             <h2 className="text-xl font-black font-mono text-slate-300 mt-1">
               {summaryMetrics.targetTotal} ราย
             </h2>
+            <MtdTrendChart values={mtdTrend.target} color="#94a3b8" />
           </div>
-          <div className="bg-[#0D0D10] border border-white/10 p-4 rounded-xl">
+          <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 p-4 rounded-xl">
             <p className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">
               {'Actual "ปกติ" (MER,COM,BA)'}
             </p>
             <h2 className="text-xl font-black font-mono text-emerald-400 mt-1">
               {summaryMetrics.activeOps} คน
             </h2>
+            <MtdTrendChart values={mtdTrend.active} color="#34d399" />
           </div>
-          <div className="bg-[#0D0D10] border border-white/10 p-4 rounded-xl">
+          <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 p-4 rounded-xl">
             <p className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">
               Base KPI Score (%)
             </p>
             <h2 className="text-xl font-black font-mono text-white mt-1">
               {summaryMetrics.baseKpi}%
             </h2>
+            <MtdTrendChart values={mtdTrend.base} color="#60a5fa" />
           </div>
-          <div className="bg-[#0D0D10] border border-white/10 p-4 rounded-xl border-l-4 border-l-rose-500">
+          <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 p-4 rounded-xl border-l-4 border-l-rose-500">
             <p className="text-rose-400 text-[9px] uppercase font-bold tracking-wider flex items-center gap-1">
               <AlertTriangle size={10} /> Avg Scale Penalty
             </p>
             <h2 className="text-xl font-black font-mono text-rose-400 mt-1">
               -{summaryMetrics.avgPenalty}
             </h2>
+            <MtdTrendChart values={mtdTrend.penalty} color="#fb7185" />
           </div>
-          <div className="bg-[#0D0D10] border border-white/10 p-4 rounded-xl border-l-4 border-l-yellow-500 col-span-2 lg:col-span-1">
+          <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 p-4 rounded-xl border-l-4 border-l-yellow-500 col-span-2 lg:col-span-1">
             <p className="text-yellow-400 text-[9px] uppercase font-bold tracking-wider">
               Final Adjusted KPI
             </p>
             <h2 className="text-xl font-black font-mono text-yellow-400 mt-1">
               {summaryMetrics.finalKpi}%
             </h2>
+            <MtdTrendChart values={mtdTrend.final} color="#facc15" />
           </div>
         </div>
 
         {/* Tables Section */}
-        <div className="bg-[#0D0D10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
           <div className="p-4 bg-[#121217] border-b border-white/5">
             <h3 className="text-xs font-black uppercase text-white tracking-wider">
               ตารางสรุปคะแนนประเมิน KPI & Scale Turnover Deduction รายพื้นที่
@@ -833,7 +998,7 @@ export default function KPIDashboard() {
         </div>
 
         {/* ทำเนียบพนักงาน */}
-        <div className="bg-[#0D0D10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="bg-linear-to-br from-[#101827] via-[#122034] to-[#0a3033] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
           <div className="p-4 bg-[#121217] border-b border-white/5 flex items-center justify-between">
             <div className="relative w-full sm:w-72">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">

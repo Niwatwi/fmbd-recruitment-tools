@@ -53,3 +53,162 @@ html[data-theme="light"] select[class*="text-white"],
 html[data-theme="light"] textarea[class*="text-white"] {
   color: #1e293b !important;
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  body.charts-printing * {
+    visibility: hidden !important;
+  }
+
+  body.charts-printing #dashboard-chart-export,
+  body.charts-printing #dashboard-chart-export * {
+    visibility: visible !important;
+  }
+
+  body.charts-printing #dashboard-chart-export {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 12px;
+    background: #fff !important;
+  }
+
+  body.charts-printing #dashboard-chart-export > div {
+    break-inside: avoid;
+    border: 1px solid #cbd5e1 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+  }
+
+  body.charts-printing #dashboard-chart-export [fill="#ffffff"] {
+    fill: #111827 !important;
+  }
+
+  body.application-printing * {
+    visibility: hidden !important;
+  }
+
+  body.application-printing #application-print-sheet,
+  body.application-printing #application-print-sheet *,
+  body.ats-application-printing #ats-application-print-sheet,
+  body.ats-application-printing #ats-application-print-sheet * {
+    visibility: visible !important;
+  }
+
+  body.application-printing #application-print-sheet {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: block;
+    width: 100%;
+    padding: 18mm;
+    color: #111827 !important;
+    background: #fff !important;
+    font: 11pt/1.5 sans-serif;
+  }
+
+  body.ats-application-printing #ats-application-print-sheet {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: block;
+    width: 100%;
+    padding: 18mm;
+    color: #111827 !important;
+    background: #fff !important;
+    font: 10pt/1.5 sans-serif;
+  }
+
+  #application-print-sheet h1 {
+    margin-bottom: 4mm;
+    border-bottom: 2px solid #1e3a8a;
+    padding-bottom: 3mm;
+    font-size: 19pt;
+    font-weight: 700;
+  }
+
+  #application-print-sheet h2 {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  #application-print-sheet table {
+    width: 100%;
+    margin-top: 8mm;
+    border-collapse: collapse;
+  }
+
+  #application-print-sheet th,
+  #application-print-sheet td {
+    border: 1px solid #bfdbfe;
+    padding: 2.5mm;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  #application-print-sheet th {
+    width: 32%;
+    background: #eff6ff !important;
+  }
+
+  #application-print-sheet .application-print-signature {
+    margin-top: 18mm;
+    text-align: right;
+  }
+
+  #ats-application-print-sheet h1 {
+    border-bottom: 2px solid #1e3a8a;
+    padding-bottom: 3mm;
+    font-size: 19pt;
+    font-weight: 700;
+  }
+
+  #ats-application-print-sheet h2 {
+    margin-top: 4mm;
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  #ats-application-print-sheet table {
+    width: 100%;
+    margin-top: 8mm;
+    border-collapse: collapse;
+  }
+
+  #ats-application-print-sheet th,
+  #ats-application-print-sheet td {
+    border: 1px solid #bfdbfe;
+    padding: 2mm;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  #ats-application-print-sheet th {
+    width: 32%;
+    background: #eff6ff !important;
+  }
+
+  #ats-application-print-sheet .ats-application-print-signature {
+    margin-top: 16mm;
+    text-align: right;
+  }
+}
+
+#application-print-sheet,
+#ats-application-print-sheet {
+  display: none;
+}
+
+@media print {
+  body.ats-application-printing * {
+    visibility: hidden !important;
+  }
+}

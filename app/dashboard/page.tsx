@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
+import * as XLSX from "xlsx";
 import {
   Users,
   RefreshCw,
@@ -19,9 +20,12 @@ import {
   Trophy,
   ArrowUpDown,
   Save,
+  FileDown,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import {
+  BarChart,
+  Bar,
   PieChart,
   Pie,
   Cell,
@@ -30,6 +34,7 @@ import {
   Legend as RechartsLegend,
   LineChart,
   Line,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -50,6 +55,43 @@ const TYPE_COLORS = {
   KOE: "#3b82f6",
   MER: "#ea580c",
 };
+
+const CHART_COLORS = [
+  "#2563eb",
+  "#10b981",
+  "#f59e0b",
+  "#f43f5e",
+  "#8b5cf6",
+  "#06b6d4",
+];
+const CHART_DIMENSIONS = [
+  { value: "area", label: "Area" },
+  { value: "role", label: "Role" },
+  { value: "employee_type", label: "Employee Type" },
+  { value: "status_app", label: "Status" },
+  { value: "month", label: "Month" },
+];
+
+function ThreeDimensionalBar(props: any) {
+  const { x, y, width, height, fill } = props;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || height <= 0) return null;
+  const depth = 5;
+  return (
+    <g>
+      <polygon
+        points={`${x},${y} ${x + depth},${y - depth} ${x + width + depth},${y - depth} ${x + width},${y}`}
+        fill={fill}
+        opacity={0.72}
+      />
+      <polygon
+        points={`${x + width},${y} ${x + width + depth},${y - depth} ${x + width + depth},${y + height - depth} ${x + width},${y + height}`}
+        fill={fill}
+        opacity={0.52}
+      />
+      <rect x={x} y={y} width={width} height={height} fill={fill} />
+    </g>
+  );
+}
 
 const MONTH_NAMES: any = {
   "1": "January",
@@ -121,6 +163,14 @@ export default function CompleteManpowerWarRoom() {
   const [dateTo, setDateTo] = useState("2026-06-21");
 
   const [chartMode, setChartMode] = useState<"percent" | "count">("percent");
+  const [manualChartType, setManualChartType] = useState<
+    "bar" | "donut" | "line"
+  >("bar");
+  const [manualGroupBy, setManualGroupBy] = useState("area");
+  const [manualSeriesBy, setManualSeriesBy] = useState("status_app");
+  const [manualChartValue, setManualChartValue] = useState<"count" | "percent">(
+    "count",
+  );
   const [searchTableTerm, setSearchTableTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<string>("date_stamp");
@@ -599,6 +649,7 @@ export default function CompleteManpowerWarRoom() {
           total: 0,
           ปกติ: 0,
           รอลงงาน: 0,
+          ระงับการใช้งาน: 0,
           สรรหา: 0,
           แจ้งลาออก: 0,
         };
@@ -607,6 +658,8 @@ export default function CompleteManpowerWarRoom() {
       monthsMap[key].total += 1;
       if (item.status_app === "ปกติ") monthsMap[key]["ปกติ"] += 1;
       else if (item.status_app === "รอลงงาน") monthsMap[key]["รอลงงาน"] += 1;
+      else if (item.status_app === "ระงับการใช้งาน")
+        monthsMap[key]["ระงับการใช้งาน"] += 1;
       else if (item.status_app === "สรรหา") monthsMap[key]["สรรหา"] += 1;
       else if (item.status_app === "แจ้งลาออก")
         monthsMap[key]["แจ้งลาออก"] += 1;
@@ -621,12 +674,70 @@ export default function CompleteManpowerWarRoom() {
           Share: parseFloat(shareVal.toFixed(1)),
           ปกติ: m["ปกติ"],
           รอลงงาน: m["รอลงงาน"],
+          ระงับการใช้งาน: m["ระงับการใช้งาน"],
           สรรหา: m["สรรหา"],
           แจ้งลาออก: m["แจ้งลาออก"],
         };
       })
       .sort((a, b) => a.month.localeCompare(b.month));
   }, [filteredData]);
+
+  const manualChartData = useMemo(() => {
+    const formatDimension = (item: any, dimension: string) => {
+      if (dimension === "month") {
+        const date = parseDashboardStampDate(item.date_stamp);
+        const year = date?.getFullYear() ?? item.year_num;
+        const month = date ? date.getMonth() + 1 : Number(item.month_num);
+        return year && month
+          ? `${year}-${String(month).padStart(2, "0")}`
+          : "ไม่ระบุ";
+      }
+      return String(item[dimension] || "ไม่ระบุ");
+    };
+
+    const groups = new Map<string, Record<string, any>>();
+    filteredData.forEach((item) => {
+      const group = formatDimension(item, manualGroupBy);
+      const series = formatDimension(item, manualSeriesBy);
+      const row = groups.get(group) || { name: group, _total: 0 };
+      row[series] = (row[series] || 0) + 1;
+      row._total += 1;
+      groups.set(group, row);
+    });
+
+    const rows = Array.from(groups.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true }),
+    );
+    const seriesNames = Array.from(
+      new Set(
+        rows.flatMap((row) =>
+          Object.keys(row).filter((key) => key !== "name" && key !== "_total"),
+        ),
+      ),
+    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    return {
+      seriesNames,
+      rows: rows.map((row) => {
+        const result: Record<string, any> = { name: row.name };
+        seriesNames.forEach((series) => {
+          result[series] =
+            manualChartValue === "percent"
+              ? Number((((row[series] || 0) / row._total) * 100).toFixed(1))
+              : row[series] || 0;
+        });
+        return result;
+      }),
+    };
+  }, [filteredData, manualGroupBy, manualSeriesBy, manualChartValue]);
+
+  const exportChartsPdf = () => {
+    const removePrintMode = () =>
+      document.body.classList.remove("charts-printing");
+    document.body.classList.add("charts-printing");
+    window.addEventListener("afterprint", removePrintMode, { once: true });
+    window.setTimeout(() => window.print(), 100);
+  };
 
   const pieStatusData = [
     { name: "ปกติ", value: activeCount },
@@ -704,49 +815,147 @@ export default function CompleteManpowerWarRoom() {
   const totalPagesCount = Math.ceil(sortedTableRows.length / rowsPerPage);
 
   const handleExportExcel = () => {
-    // 1. กำหนดหัวตาราง (Header)
-    const headers = [
-      "DATE STAMP",
-      "EMPLOYEE ID",
-      "FULLNAME",
-      "AREA",
-      "AREA CODE",
-      "ROLE",
-      "VERSION",
-      "STATUS APP",
+    const workbook = XLSX.utils.book_new();
+    const dataSheet = XLSX.utils.json_to_sheet(
+      searchedRows.map((item) => ({
+        "DATE STAMP": item.date_stamp || "",
+        "EMPLOYEE ID": item.employee_id || "",
+        FULLNAME: item.fullname || "",
+        AREA: item.area || "",
+        "AREA CODE": item.area_code || "",
+        ROLE: item.role || "",
+        VERSION: item.version || "",
+        "STATUS APP": item.status_app || "",
+      })),
+    );
+    dataSheet["!cols"] = [
+      { wch: 20 },
+      { wch: 16 },
+      { wch: 30 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 20 },
     ];
+    XLSX.utils.book_append_sheet(workbook, dataSheet, "Manpower Data");
 
-    // 2. แปลงข้อมูลจากรายการที่กรองไว้ (searchedRows หรือ filteredData)
-    const rows = searchedRows.map((item) => [
-      `"${item.date_stamp || ""}"`,
-      `"${item.employee_id || ""}"`,
-      `"${item.fullname || ""}"`,
-      `"${item.area || ""}"`,
-      `"${item.area_code || ""}"`,
-      `"${item.role || ""}"`,
-      `"${item.version || ""}"`,
-      `"${item.status_app || ""}"`,
-    ]);
+    const areaSummary = areaTargets
+      .filter((area) => filterArea === "All Area" || area.name === filterArea)
+      .map((area) => {
+        const areaRows = filteredData.filter((row) => row.area === area.name);
+        const latestByEmployee = new Map<string, any>();
+        areaRows.forEach((row) => {
+          const employeeKey =
+            row.employee_id?.toString().trim() ||
+            row.fullname?.toString().trim();
+          if (!employeeKey) return;
+          const current = latestByEmployee.get(employeeKey);
+          const rowTime =
+            parseDashboardStampDate(row.date_stamp)?.getTime() || 0;
+          const currentTime =
+            parseDashboardStampDate(current?.date_stamp)?.getTime() || 0;
+          if (!current || rowTime >= currentTime) {
+            latestByEmployee.set(employeeKey, row);
+          }
+        });
+        const latestRows = Array.from(latestByEmployee.values());
+        const activeByRole = latestRows.filter(
+          (row) =>
+            row.status_app === "ปกติ" &&
+            ["MER", "COM", "BA"].includes(
+              row.employee_type?.toString().trim().toUpperCase(),
+            ),
+        ).length;
+        const approvedTarget =
+          (area.approve.MER || 0) +
+          (area.approve.COM || 0) +
+          (area.approve.BA || 0);
+        const people = Array.from(
+          new Set(
+            areaRows
+              .filter((row) => ["MER", "COM", "BA"].includes(row.employee_type))
+              .map((row) => row.fullname)
+              .filter(Boolean),
+          ),
+        );
+        const evaluationDate = parseDashboardStampDate(dateTo) || new Date();
+        const totalPenalty = people.reduce((sum, name) => {
+          const personRows = rawData
+            .filter(
+              (row) =>
+                row.fullname === name &&
+                ["MER", "COM", "BA"].includes(row.employee_type),
+            )
+            .sort(
+              (first, second) =>
+                (parseDashboardStampDate(first.date_stamp)?.getTime() || 0) -
+                (parseDashboardStampDate(second.date_stamp)?.getTime() || 0),
+            );
+          let penalty = 0;
+          let cycleStart: Date | null = null;
+          personRows.forEach((row) => {
+            const date = parseDashboardStampDate(row.date_stamp);
+            if (!date) return;
+            if (row.status_app === "แจ้งลาออก" || row.status_app === "สรรหา") {
+              if (!cycleStart) cycleStart = date;
+            } else if (row.status_app === "ปกติ" && cycleStart) {
+              const days = Math.floor(
+                (date.getTime() - cycleStart.getTime()) / 86400000,
+              );
+              if (days > 15) penalty += Math.min(days - 15, 30);
+              cycleStart = null;
+            }
+          });
+          if (cycleStart) {
+            const days = Math.floor(
+              (evaluationDate.getTime() - cycleStart.getTime()) / 86400000,
+            );
+            if (days > 15) penalty += Math.min(days - 15, 30);
+          }
+          return sum + penalty;
+        }, 0);
+        const averagePenalty = people.length ? totalPenalty / people.length : 0;
+        const baseScore =
+          approvedTarget > 0 ? (activeByRole / approvedTarget) * 100 : 0;
 
-    // 3. รวม Header และ Body พร้อมใส่ \uFEFF (BOM) ป้องกันภาษาไทยต่างดาวใน Excel
-    const csvContent =
-      "\uFEFF" +
-      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-    // 4. สร้าง Link สำหรับดาวน์โหลดไฟล์
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Manpower_Report_${dateTo}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        return {
+          Area: area.name,
+          "Approved Target": approvedTarget,
+          "Actual Active": activeByRole,
+          "Base KPI Score (%)": Number(baseScore.toFixed(1)),
+          "Average Scale Penalty": Number(averagePenalty.toFixed(2)),
+          "Adjusted KPI Score (%)": Number(
+            Math.max(baseScore - averagePenalty, 0).toFixed(1),
+          ),
+          "Active KOE": latestRows.filter(
+            (row) =>
+              row.status_app === "ปกติ" &&
+              row.employee_type?.toString().trim().toUpperCase() === "KOE",
+          ).length,
+          "All Active Roles": latestRows.filter(
+            (row) => row.status_app === "ปกติ",
+          ).length,
+        };
+      });
+    const summarySheet = XLSX.utils.json_to_sheet(areaSummary);
+    summarySheet["!cols"] = [
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 23 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 20 },
+    ];
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "KPI by Area");
+    XLSX.writeFile(workbook, `Manpower_Report_${dateTo}.xlsx`);
   };
 
   return (
     <div
-      className={`min-h-screen flex flex-col gap-6 font-sans p-4 md:p-6 select-none transition-colors duration-300 ${isDarkMode ? "bg-[#060A13] text-slate-100" : "bg-[#f8fafc] text-slate-800"}`}
+      className={`min-h-screen flex flex-col gap-6 font-sans p-4 md:p-6 select-none transition-colors duration-300 ${isDarkMode ? "bg-linear-to-br from-[#060A13] via-[#101b34] to-[#092d35] text-slate-100" : "bg-[#f8fafc] text-slate-800"}`}
     >
       {/* Header Bar */}
       <div
@@ -1290,79 +1499,213 @@ export default function CompleteManpowerWarRoom() {
       </div>
 
       {/* Recharts Analytics Charts Area */}
-      <div className="order-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div
+        id="dashboard-chart-export"
+        className="order-5 grid grid-cols-1 lg:grid-cols-2 gap-6"
+      >
         <div
-          className={`border p-4 rounded-2xl shadow-xl space-y-3 min-h-80 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+          className={`border p-4 rounded-2xl shadow-xl space-y-3 min-h-80 transition-colors duration-300 ${isDarkMode ? "bg-linear-to-br from-[#0B132B] via-[#14223f] to-[#102b38] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h4
               className={`text-xs font-black uppercase ${isDarkMode ? "text-white" : "text-slate-900"}`}
             >
-              Status Distribution
+              Manual Comparison
             </h4>
-            <div
-              className={`p-0.5 rounded-lg flex text-[10px] border font-bold ${isDarkMode ? "bg-[#111A36] border-[#222F54]" : "bg-slate-100 border-slate-200"}`}
+            <button
+              type="button"
+              onClick={exportChartsPdf}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-500"
+              title="Print chart values to PDF"
             >
-              <button
-                onClick={() => setChartMode("percent")}
-                className={`px-2 py-0.5 rounded ${chartMode === "percent" ? "bg-blue-600 text-white" : "text-slate-400"}`}
-              >
-                %
-              </button>
-              <button
-                onClick={() => setChartMode("count")}
-                className={`px-2 py-0.5 rounded ${chartMode === "count" ? "bg-blue-600 text-white" : "text-slate-400"}`}
-              >
-                # Count
-              </button>
-            </div>
+              <FileDown size={13} /> Export PDF
+            </button>
           </div>
-          <div className="h-56 w-full text-xs font-bold relative block">
-            {mounted && totalCount > 0 ? (
-              <ResponsiveContainer width="100%" height={224}>
-                <PieChart>
-                  <Pie
-                    data={pieStatusData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={75}
-                    paddingAngle={2}
+          <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold sm:grid-cols-4">
+            <label className="text-slate-400">
+              Group
+              <select
+                value={manualGroupBy}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setManualGroupBy(nextValue);
+                  if (nextValue === manualSeriesBy) {
+                    setManualSeriesBy(
+                      CHART_DIMENSIONS.find((item) => item.value !== nextValue)
+                        ?.value || "status_app",
+                    );
+                  }
+                }}
+                className={`mt-1 w-full rounded-md border px-2 py-1.5 ${isDarkMode ? "border-slate-700 bg-slate-900/70 text-white" : "border-slate-200 bg-white text-slate-800"}`}
+              >
+                {CHART_DIMENSIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-slate-400">
+              Compare
+              <select
+                value={manualSeriesBy}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setManualSeriesBy(nextValue);
+                  if (nextValue === manualGroupBy) {
+                    setManualGroupBy(
+                      CHART_DIMENSIONS.find((item) => item.value !== nextValue)
+                        ?.value || "area",
+                    );
+                  }
+                }}
+                className={`mt-1 w-full rounded-md border px-2 py-1.5 ${isDarkMode ? "border-slate-700 bg-slate-900/70 text-white" : "border-slate-200 bg-white text-slate-800"}`}
+              >
+                {CHART_DIMENSIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-slate-400">
+              Chart
+              <select
+                value={manualChartType}
+                onChange={(event) =>
+                  setManualChartType(
+                    event.target.value as "bar" | "donut" | "line",
+                  )
+                }
+                className={`mt-1 w-full rounded-md border px-2 py-1.5 ${isDarkMode ? "border-slate-700 bg-slate-900/70 text-white" : "border-slate-200 bg-white text-slate-800"}`}
+              >
+                <option value="bar">3-D Stacked Bar</option>
+                <option value="donut">Donut</option>
+                <option value="line">Trend line</option>
+              </select>
+            </label>
+            <label className="text-slate-400">
+              Values
+              <select
+                value={manualChartValue}
+                onChange={(event) =>
+                  setManualChartValue(event.target.value as "count" | "percent")
+                }
+                className={`mt-1 w-full rounded-md border px-2 py-1.5 ${isDarkMode ? "border-slate-700 bg-slate-900/70 text-white" : "border-slate-200 bg-white text-slate-800"}`}
+              >
+                <option value="count">Count</option>
+                <option value="percent">% of group</option>
+              </select>
+            </label>
+          </div>
+          <div
+            id="dashboard-chart-export"
+            className="h-64 w-full text-xs font-bold relative block"
+          >
+            {mounted && manualChartData.rows.length > 0 ? (
+              <ResponsiveContainer width="100%" height={256}>
+                {manualChartType === "donut" ? (
+                  <PieChart>
+                    <Pie
+                      data={manualChartData.seriesNames.map((name) => ({
+                        name,
+                        value: manualChartData.rows.reduce(
+                          (sum, row) => sum + (row[name] || 0),
+                          0,
+                        ),
+                      }))}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={48}
+                      outerRadius={76}
+                      paddingAngle={2}
+                      label={({ name, value }) =>
+                        `${name}: ${value}${manualChartValue === "percent" ? "%" : ""}`
+                      }
+                    >
+                      {manualChartData.seriesNames.map((name, index) => (
+                        <Cell
+                          key={name}
+                          fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip />
+                    <RechartsLegend verticalAlign="bottom" height={24} />
+                  </PieChart>
+                ) : manualChartType === "line" ? (
+                  <LineChart
+                    data={manualChartData.rows}
+                    margin={{ left: -20, right: 12, top: 14 }}
                   >
-                    {pieStatusData.map((e: any) => (
-                      <Cell
-                        key={e.name}
-                        fill={(STATUS_COLORS as any)[e.name] || "#fff"}
-                      />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke={isDarkMode ? "#334155" : "#e2e8f0"}
+                    />
+                    <XAxis dataKey="name" stroke="#64748b" />
+                    <YAxis stroke="#64748b" />
+                    <RechartsTooltip />
+                    <RechartsLegend />
+                    {manualChartData.seriesNames.map((name, index) => (
+                      <Line
+                        key={name}
+                        type="monotone"
+                        dataKey={name}
+                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      >
+                        <LabelList dataKey={name} position="top" fontSize={8} />
+                      </Line>
                     ))}
-                  </Pie>
-                  <RechartsTooltip
-                    formatter={(value) => [
-                      chartMode === "percent"
-                        ? `${((Number(value) / totalCount) * 100).toFixed(1)}%`
-                        : `${value} ราย`,
-                      "สัดส่วน",
-                    ]}
-                  />
-                  <RechartsLegend
-                    verticalAlign="bottom"
-                    height={24}
-                    iconType="circle"
-                  />
-                </PieChart>
+                  </LineChart>
+                ) : (
+                  <BarChart
+                    data={manualChartData.rows}
+                    margin={{ left: -20, right: 12, top: 16, bottom: 4 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke={isDarkMode ? "#334155" : "#e2e8f0"}
+                    />
+                    <XAxis dataKey="name" stroke="#64748b" />
+                    <YAxis stroke="#64748b" />
+                    <RechartsTooltip />
+                    <RechartsLegend />
+                    {manualChartData.seriesNames.map((name, index) => (
+                      <Bar
+                        key={name}
+                        dataKey={name}
+                        stackId="manual"
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        shape={<ThreeDimensionalBar />}
+                        isAnimationActive={false}
+                      >
+                        <LabelList
+                          dataKey={name}
+                          position="inside"
+                          fill="#ffffff"
+                          fontSize={9}
+                        />
+                      </Bar>
+                    ))}
+                  </BarChart>
+                )}
               </ResponsiveContainer>
             ) : (
-              <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs py-12">
-                ไม่มีข้อมูลแสดงสถิติสถานะในระบบ
+              <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                ไม่มีข้อมูลสำหรับเงื่อนไขเปรียบเทียบนี้
               </div>
             )}
           </div>
         </div>
 
         <div
-          className={`border p-4 rounded-2xl shadow-xl space-y-3 min-h-80 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+          className={`border p-4 rounded-2xl shadow-xl space-y-3 min-h-80 transition-colors duration-300 ${isDarkMode ? "bg-linear-to-br from-[#0B132B] via-[#14223f] to-[#102b38] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
           <h4
             className={`text-xs font-black uppercase ${isDarkMode ? "text-white" : "text-slate-900"}`}
@@ -1414,12 +1757,12 @@ export default function CompleteManpowerWarRoom() {
         </div>
 
         <div
-          className={`border p-4 rounded-2xl shadow-xl space-y-2 lg:col-span-2 min-h-75 transition-colors duration-300 ${isDarkMode ? "bg-[#0B132B] border-[#1C2541]" : "bg-white border-slate-200"}`}
+          className={`border p-4 rounded-2xl shadow-xl space-y-2 lg:col-span-2 min-h-75 transition-colors duration-300 ${isDarkMode ? "bg-linear-to-br from-[#0B132B] via-[#14223f] to-[#102b38] border-[#1C2541]" : "bg-white border-slate-200"}`}
         >
           <h4
             className={`text-xs font-black uppercase ${isDarkMode ? "text-white" : "text-slate-900"}`}
           >
-            Headcount Trend (% share per month)
+            Trend line by Status and Month
           </h4>
           <div className="h-56 w-full text-xs font-bold relative block">
             {mounted && monthlyTimelineData.length > 0 ? (
@@ -1434,16 +1777,24 @@ export default function CompleteManpowerWarRoom() {
                     stroke={isDarkMode ? "#1C2541" : "#e2e8f0"}
                   />
                   <XAxis dataKey="month" stroke="#64748b" />
-                  <YAxis stroke="#64748b" unit="%" />
+                  <YAxis stroke="#64748b" />
                   <RechartsTooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="Share"
-                    stroke="#ea580c"
-                    strokeWidth={3}
-                    dot={{ r: 5 }}
-                    activeDot={{ r: 7 }}
-                  />
+                  <RechartsLegend />
+                  {Object.entries(STATUS_COLORS).map(([status, color]) => (
+                    <Line
+                      key={status}
+                      type="monotone"
+                      dataKey={status}
+                      name={status}
+                      stroke={color}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                      isAnimationActive={false}
+                    >
+                      <LabelList dataKey={status} position="top" fontSize={8} />
+                    </Line>
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -1488,9 +1839,7 @@ export default function CompleteManpowerWarRoom() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-[11px] font-bold">
             <thead>
-              <tr
-                className={`border-b uppercase tracking-wider text-[10px] ${isDarkMode ? "bg-[#0f1526] text-slate-400 border-slate-800" : "bg-slate-100/80 text-slate-500 border-slate-200"}`}
-              >
+              <tr className="border-b border-blue-900 bg-blue-800 text-[10px] uppercase tracking-wider text-white">
                 {[
                   "date_stamp",
                   "employee_id",
@@ -1537,7 +1886,7 @@ export default function CompleteManpowerWarRoom() {
                 currentTableData.map((item: any, idx) => (
                   <tr
                     key={item.id || idx}
-                    className={`transition-colors ${isDarkMode ? "hover:bg-slate-800/20" : "hover:bg-slate-100/60"}`}
+                    className={`border-b border-blue-100 transition-colors ${idx % 2 === 0 ? (isDarkMode ? "bg-[#12213b] hover:bg-[#1a3152]" : "bg-white hover:bg-blue-50") : isDarkMode ? "bg-[#0c172b] hover:bg-[#1a3152]" : "bg-blue-50/80 hover:bg-blue-100/70"}`}
                   >
                     <td className="px-5 py-3 text-slate-500 font-mono">
                       {item.date_stamp || "-"}

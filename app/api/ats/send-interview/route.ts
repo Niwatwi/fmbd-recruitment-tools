@@ -63,6 +63,15 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
+  if (/your_key|placeholder|example/i.test(resendApiKey)) {
+    return Response.json(
+      {
+        error:
+          "RESEND_API_KEY is still a placeholder. Add a valid Resend API key to .env.local, then restart the dev server.",
+      },
+      { status: 503 },
+    );
+  }
 
   let body: { interviewId?: string };
   try {

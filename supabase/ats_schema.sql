@@ -104,6 +104,9 @@ create table if not exists public.ats_applications (
 );
 
 alter table public.ats_applications
+  add column if not exists candidate_details jsonb not null default '{}'::jsonb;
+
+alter table public.ats_applications
   add column if not exists review_status text not null default 'pending'
     check (review_status in ('pending', 'approved', 'declined')),
   add column if not exists reviewed_by uuid references auth.users(id) on delete set null,
@@ -220,6 +223,8 @@ as $$
   limit 1;
 $$;
 
+drop function if exists public.ats_submit_public_application(text, text, text, text, text, text, text, text, boolean, text);
+
 create or replace function public.ats_submit_public_application(
   p_job_code text,
   p_token text,
@@ -229,6 +234,7 @@ create or replace function public.ats_submit_public_application(
   p_location text,
   p_linkedin_url text,
   p_resume_url text,
+  p_application_details jsonb,
   p_privacy_consent boolean,
   p_website text
 )
@@ -280,6 +286,11 @@ begin
     or length(coalesce(p_linkedin_url, '')) > 500
     or length(coalesce(p_resume_url, '')) > 1000 then
     raise exception 'One or more application fields exceed the allowed length';
+  end if;
+
+  if jsonb_typeof(coalesce(p_application_details, '{}'::jsonb)) <> 'object'
+    or octet_length(coalesce(p_application_details, '{}'::jsonb)::text) > 24000 then
+    raise exception 'Application details must be an object smaller than 24 KB';
   end if;
 
   perform pg_advisory_xact_lock(
@@ -347,10 +358,11 @@ begin
   new_application_code := 'APP-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 12));
   insert into public.ats_applications (
     application_code, candidate_id, job_id, stage, review_status,
-    source, owner_email
+    source, owner_email, candidate_details
   ) values (
     new_application_code, selected_candidate_id, selected_job.id,
-    'new_applicant', 'pending', 'Careers application link', selected_job.recruiter_email
+    'new_applicant', 'pending', 'Careers application link', selected_job.recruiter_email,
+    coalesce(p_application_details, '{}'::jsonb)
   ) returning id into new_application_id;
 
   insert into public.ats_activity (
@@ -424,8 +436,8 @@ grant select, insert, update, delete on
 
 revoke all on function public.ats_get_public_job(text, text) from public;
 grant execute on function public.ats_get_public_job(text, text) to anon, authenticated;
-revoke all on function public.ats_submit_public_application(text, text, text, text, text, text, text, text, boolean, text) from public;
-grant execute on function public.ats_submit_public_application(text, text, text, text, text, text, text, text, boolean, text) to anon, authenticated;
+revoke all on function public.ats_submit_public_application(text, text, text, text, text, text, text, text, jsonb, boolean, text) from public;
+grant execute on function public.ats_submit_public_application(text, text, text, text, text, text, text, text, jsonb, boolean, text) to anon, authenticated;
 
 DO $$
 DECLARE
