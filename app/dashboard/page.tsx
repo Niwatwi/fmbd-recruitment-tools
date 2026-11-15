@@ -295,6 +295,7 @@ export default function CompleteManpowerWarRoom() {
           const roleKey = row.role
             ? row.role.toString().trim().toUpperCase()
             : "";
+          const planValue = row.target_plan || 0;
           const approveValue = row.target_approve || 0;
 
           if (areaKey && !baseMap[areaKey]) {
@@ -309,7 +310,7 @@ export default function CompleteManpowerWarRoom() {
 
           if (baseMap[areaKey]) {
             baseMap[areaKey].approve[roleKey] = approveValue;
-            baseMap[areaKey].plan[roleKey] = approveValue;
+            baseMap[areaKey].plan[roleKey] = planValue;
           }
         });
         setAreaTargets(Object.values(baseMap));
@@ -331,6 +332,7 @@ export default function CompleteManpowerWarRoom() {
           rowsToUpsert.push({
             area: areaItem.name.trim(),
             role: roleKey,
+            target_plan: areaItem.plan[roleKey] || 0,
             target_approve: areaItem.approve[roleKey] || 0,
           });
         });

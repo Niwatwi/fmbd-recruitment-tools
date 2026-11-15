@@ -41,7 +41,9 @@ const parseStampDate = (dateStr: any): Date | null => {
   const trimmed = dateStr.trim();
   if (!trimmed) return null;
 
-  const dateParts = trimmed.match(/^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})$/);
+  const dateParts = trimmed.match(
+    /^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$/,
+  );
   let parsedDate: Date;
 
   if (dateParts) {
@@ -75,6 +77,26 @@ const getCurrentYearDateRange = () => {
   const dateTo = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   return { dateFrom: `${today.getFullYear()}-01-01`, dateTo };
+};
+
+const getLatestEmployeeRows = (rows: any[]) => {
+  const latestRows = new Map<string, any>();
+
+  rows.forEach((row) => {
+    const employeeKey =
+      row.employee_id?.toString().trim() || row.fullname?.toString().trim();
+    if (!employeeKey) return;
+
+    const rowTime = parseStampDate(row.date_stamp)?.getTime() || 0;
+    const previousRow = latestRows.get(employeeKey);
+    const previousTime =
+      parseStampDate(previousRow?.date_stamp)?.getTime() || 0;
+    if (!previousRow || rowTime >= previousTime) {
+      latestRows.set(employeeKey, row);
+    }
+  });
+
+  return Array.from(latestRows.values());
 };
 
 export default function KPIDashboard() {
@@ -403,11 +425,11 @@ export default function KPIDashboard() {
     const opsStaffRows = filteredData.filter((d) =>
       ["MER", "COM", "BA"].includes(d.employee_type),
     );
-    const activeOps = new Set(
-      opsStaffRows
-        .filter((d) => d.status_app === "ปกติ")
-        .map((d) => d.fullname),
-    ).size;
+    const activeOps = getLatestEmployeeRows(filteredData).filter(
+      (d) =>
+        d.status_app === "ปกติ" &&
+        ["MER", "COM", "BA"].includes(d.employee_type),
+    ).length;
 
     const targetOpsTotal = areaTargets
       .filter((t) => filterArea === "All Area" || t.name === filterArea)
@@ -449,15 +471,22 @@ export default function KPIDashboard() {
         const areaFullStaff = filteredData.filter(
           (d) => d.area === targetArea.name,
         );
-        const areaOpsActive = new Set(
-          areaFullStaff
-            .filter(
-              (d) =>
-                d.status_app === "ปกติ" &&
-                ["MER", "COM", "BA"].includes(d.employee_type),
-            )
-            .map((d) => d.fullname),
-        ).size;
+        const activeEmployees = getLatestEmployeeRows(areaFullStaff).filter(
+          (d) => d.status_app === "ปกติ",
+        );
+        const getRoleCount = (role: string) =>
+          activeEmployees.filter(
+            (d) => d.employee_type?.toString().trim().toUpperCase() === role,
+          ).length;
+        const activeByRole = {
+          KOE: getRoleCount("KOE"),
+          MER: getRoleCount("MER"),
+          COM: getRoleCount("COM"),
+          BA: getRoleCount("BA"),
+        };
+        const areaOpsActive =
+          activeByRole.MER + activeByRole.COM + activeByRole.BA;
+        const areaTotalActive = areaOpsActive + activeByRole.KOE;
         const targetApproveCount =
           targetArea.approve.MER +
           targetArea.approve.COM +
@@ -508,6 +537,8 @@ export default function KPIDashboard() {
           ...targetArea,
           targetApproveCount,
           areaOpsActive,
+          areaTotalActive,
+          activeByRole,
           baseScore: parseFloat(baseScore.toFixed(1)),
           areaAvgPenalty: parseFloat(areaAvgPenalty.toFixed(2)),
           adjustedScore,
@@ -741,7 +772,10 @@ export default function KPIDashboard() {
                   <th className="px-5 py-3.5">Area</th>
                   <th className="px-5 py-3.5 text-center">Approved Target</th>
                   <th className="px-5 py-3.5 text-center">
-                    Actual Active (คน)
+                    Actual Active KPI (MER/COM/BA)
+                  </th>
+                  <th className="px-5 py-3.5 text-center">
+                    Active All Roles (KOE+MER+COM+BA)
                   </th>
                   <th className="px-5 py-3.5 text-center">Base Score</th>
                   <th className="px-5 py-3.5 text-center text-rose-400">
@@ -763,7 +797,17 @@ export default function KPIDashboard() {
                       {area.targetApproveCount} ราย
                     </td>
                     <td className="px-5 py-3.5 text-center font-mono text-emerald-400">
-                      {area.areaOpsActive} คน
+                      <div>{area.areaOpsActive} คน</div>
+                      <div className="text-[9px] text-slate-500">
+                        MER {area.activeByRole.MER} / COM{" "}
+                        {area.activeByRole.COM} / BA {area.activeByRole.BA}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-mono text-slate-300">
+                      {area.areaTotalActive} คน
+                      <div className="text-[9px] text-slate-500">
+                        KOE {area.activeByRole.KOE} รวมทุก role
+                      </div>
                     </td>
                     <td className="px-5 py-3.5 text-center font-mono">
                       {area.baseScore}%
