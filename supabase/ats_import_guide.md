@@ -28,7 +28,7 @@ Use UTF-8 CSV or Excel. Preserve all `*_code` columns as text. Codes are case-in
 
 ## 4. Public application links and review
 
-Run the updated `supabase/ats_schema.sql` in the Supabase SQL Editor to add the public application profile-details field and submission RPC signature before using the expanded application form. Then open an open requisition in the ATS and choose **Generate link**. The app stores only a SHA-256 hash of the random token. Copy the link immediately; generating another link rotates the token and invalidates the previous URL.
+Run the updated `supabase/ats_schema.sql` in the Supabase SQL Editor to add the public application profile-details field, submission RPC signature, and `ats_get_public_application_notification` RPC required for HR email notifications. The script reloads the PostgREST schema cache after creating the functions. Then open an open requisition in the ATS and choose **Generate link**. The app stores only a SHA-256 hash of the random token. Copy the link immediately; generating another link rotates the token and invalidates the previous URL.
 
 The public form submits through `ats_submit_public_application`, which accepts only an enabled, open requisition, requires privacy consent, rejects duplicate applications to the same job, and creates an admin inbox notification. Applicants cannot select or change their review status. Recruiters approve or decline from the ATS; approval moves the application to Screening.
 

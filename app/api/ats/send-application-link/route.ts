@@ -179,11 +179,20 @@ export async function POST(request: Request) {
   });
   if (!resendResponse.ok) {
     const result = await resendResponse.json().catch(() => ({}));
+    const providerMessage = String(result.message || "");
+    const error =
+      resendResponse.status === 401 ||
+      /api key is invalid|invalid api key/i.test(providerMessage)
+        ? "Resend rejected RESEND_API_KEY. Create a new API key in the correct Resend account, update the Vercel Production variable, then redeploy."
+        : /domain.*(not verified|not allowed)|from.*(not verified|not allowed)/i.test(
+              providerMessage,
+            )
+          ? "Resend rejected RESEND_FROM_EMAIL. Verify its sender domain in Resend and use an address on that domain, then redeploy."
+          : providerMessage ||
+            `The email provider could not send the application link (HTTP ${resendResponse.status})`;
     return Response.json(
       {
-        error:
-          result.message ||
-          "The email provider could not send the application link",
+        error,
       },
       { status: 502 },
     );

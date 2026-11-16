@@ -388,6 +388,63 @@ begin
 end;
 $$;
 
+create or replace function public.ats_get_public_application_notification(
+  p_job_code text,
+  p_token text,
+  p_application_code text,
+  p_applicant_email text
+)
+returns table (
+  application_id uuid,
+  application_code text,
+  applied_at timestamptz,
+  candidate_name text,
+  candidate_email text,
+  candidate_phone text,
+  candidate_location text,
+  linkedin_url text,
+  resume_url text,
+  job_code text,
+  job_title text,
+  department text,
+  employment_type text,
+  candidate_details jsonb
+)
+language sql
+stable
+security definer
+set search_path = public, extensions
+as $$
+  select
+    a.id,
+    a.application_code,
+    a.applied_at,
+    c.full_name,
+    c.email,
+    c.phone,
+    c.location,
+    c.linkedin_url,
+    c.resume_url,
+    j.job_code,
+    j.title,
+    j.department,
+    j.employment_type,
+    a.candidate_details
+  from public.ats_applications a
+  join public.ats_candidates c on c.id = a.candidate_id
+  join public.ats_jobs j on j.id = a.job_id
+  where j.job_code = upper(trim(p_job_code))
+    and j.public_application_enabled
+    and length(coalesce(p_token, '')) >= 48
+    and j.public_application_token_hash = encode(digest(convert_to(p_token, 'UTF8'), 'sha256'), 'hex')
+    and (
+      nullif(trim(p_application_code), '') is null
+      or a.application_code = upper(trim(p_application_code))
+    )
+    and lower(c.email) = lower(trim(p_applicant_email))
+  limit 1;
+$$;
+
 alter table public.ats_user_roles enable row level security;
 
 drop policy if exists ats_user_roles_read_self on public.ats_user_roles;
@@ -438,6 +495,8 @@ revoke all on function public.ats_get_public_job(text, text) from public;
 grant execute on function public.ats_get_public_job(text, text) to anon, authenticated;
 revoke all on function public.ats_submit_public_application(text, text, text, text, text, text, text, text, jsonb, boolean, text) from public;
 grant execute on function public.ats_submit_public_application(text, text, text, text, text, text, text, text, jsonb, boolean, text) to anon, authenticated;
+revoke all on function public.ats_get_public_application_notification(text, text, text, text) from public;
+grant execute on function public.ats_get_public_application_notification(text, text, text, text) to anon, authenticated;
 
 DO $$
 DECLARE
@@ -454,3 +513,5 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+notify pgrst, 'reload schema';
