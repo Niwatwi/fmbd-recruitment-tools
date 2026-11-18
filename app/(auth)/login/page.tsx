@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-// ✅ แก้ไขเป็นแบบนี้ครับพี่:
-import { supabase } from "../../../lib/supabase"; // เรียกใช้ผ่าน Path ที่ไม่มี src
+import { supabase } from "../../../lib/supabase";
 import { Lock, Mail, Loader2, Eye, EyeOff } from "lucide-react";
 import { RiverproFooter, RiverproLogo } from "@/components/riverpro-footer";
+import { verifyRecruitmentProfileAction } from "./actions";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -18,49 +18,54 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrorMsg("");
 
-    // ⚡ 1. ล้างช่องว่าง และแปลงเป็นตัวพิมพ์เล็กทั้งหมดก่อนส่งไปตรวจสอบสิทธิ์ครับพี่ยอด
     const cleanEmail = email.trim().toLowerCase();
 
     try {
+      if (
+        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      ) {
+        throw new Error("ระบบยังไม่ได้ตั้งค่าการเชื่อมต่อ Supabase");
+      }
+
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
-          email: cleanEmail, // 👈 2. เปลี่ยนมาใช้ cleanEmail ตัวที่แปลงแล้วแทนครับ
+          email: cleanEmail,
           password,
         });
 
-      if (authError) throw authError;
-
-      const profileEmail = authData.user.email?.trim().toLowerCase();
-      if (!profileEmail) {
-        throw new Error("ไม่พบอีเมลของบัญชีผู้ใช้ กรุณาติดต่อผู้ดูแลระบบ");
+      if (authError) {
+        const message = authError.message.toLowerCase();
+        if (message.includes("invalid login credentials")) {
+          throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
+        }
+        if (message.includes("email not confirmed")) {
+          throw new Error("กรุณายืนยันอีเมลในกล่องจดหมายก่อนเข้าสู่ระบบ");
+        }
+        if (message.includes("network") || message.includes("fetch")) {
+          throw new Error("ไม่สามารถเชื่อมต่อระบบยืนยันตัวตนได้ กรุณาลองใหม่");
+        }
+        throw authError;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("user_profiles")
-        .select(
-          "id,email,username,display_name,company_tag,area,employee_id,employment_type,is_active,image_url",
-        )
-        .eq("email", profileEmail)
-        .maybeSingle();
-
-      if (profileError || !profile) {
+      const accessToken = authData.session?.access_token;
+      if (!accessToken) {
         await supabase.auth.signOut();
-        throw new Error(
-          "ไม่พบโปรไฟล์ผู้ใช้หรือไม่มีสิทธิ์อ่านข้อมูล user_profiles กรุณาติดต่อผู้ดูแลระบบ",
-        );
+        throw new Error("ไม่พบข้อมูลการเข้าสู่ระบบ กรุณาลองใหม่");
       }
-
-      if (profile.is_active !== true) {
+      const verification = await verifyRecruitmentProfileAction(accessToken);
+      if (!verification.success) {
         await supabase.auth.signOut();
-        throw new Error("บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ");
+        throw new Error(verification.message);
       }
 
-      // ล็อกอินผ่านสำเร็จ ส่งตัวพนักงานเข้าหน้าหลัก Dashboard
       window.location.href = "/dashboard";
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setErrorMsg(
-        err.message || "อีเมลหรือรหัสผ่านไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง",
+        err instanceof Error
+          ? err.message
+          : "อีเมลหรือรหัสผ่านไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง",
       );
     } finally {
       setIsLoading(false);
@@ -69,7 +74,6 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#090D16] px-4">
-      {/* ✅ ปรับแก้เป็นแบบนี้เพื่อสยบคำเตือนครับพี่ */}
       <div className="absolute top-[-20%] left-[-10%] w-125 h-125 rounded-full bg-blue-500/10 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-10%] w-125 h-125 rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none" />
       <main className="relative z-10 flex flex-1 items-center justify-center py-10">
@@ -78,7 +82,7 @@ export default function LoginPage() {
             <RiverproLogo />
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">
-                Recruitment & Workforce
+                Recruitment &amp; Workforce
               </h1>
               <p className="mt-2 text-sm text-slate-400">
                 ระบบสรรหาและบริหารกำลังคน Riverpro
